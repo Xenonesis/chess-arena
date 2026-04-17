@@ -30,6 +30,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${dmSans.variable} ${playfair.variable} h-full`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" style={{ background: "var(--bg)" }}>
         <style>{`
