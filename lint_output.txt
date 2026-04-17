@@ -1,0 +1,4 @@
+
+> chess-simulator-ai-benchmark@0.1.0 lint
+> eslint .
+
