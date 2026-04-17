@@ -20,7 +20,7 @@ type MoveEntry = {
   ply: number;
   uci: string;
   san: string;
-  source: "model" | "retry" | "fallback";
+  source: "model" | "retry";
   playedByModelId: string;
 };
 
@@ -67,71 +67,33 @@ export function SimulationClient() {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
   const runningRef = useRef(false);
+  const startingRef = useRef(false);
+  const runTokenRef = useRef(0);
 
   useEffect(() => {
     return () => {
       // Avoid orphaned move polling after route transitions/reloads.
       runningRef.current = false;
+      runTokenRef.current += 1;
     };
   }, []);
 
-  const preferredWhiteSlug = useMemo(() => {
-    const preferred = [
-      "openrouter/free",
-      "openrouter/auto",
-      "google/gemma-3-4b-it:free",
-      "meta-llama/llama-3.3-70b-instruct:free",
-      "qwen/qwen3-next-80b-a3b-instruct:free",
-      "gpt-4o-mini",
-      "openai/gpt-4o-mini",
-      "claude-3-5-haiku",
-      "anthropic/claude-3-haiku",
-    ];
+  const freeModelSlugs = useMemo(
+    () => models.filter((entry) => entry.slug.includes(":free")).map((entry) => entry.slug),
+    [models],
+  );
 
-    for (const slug of preferred) {
-      if (models.some((entry) => entry.slug === slug)) {
-        return slug;
-      }
-    }
+  const defaultWhiteSlug = freeModelSlugs[0] || models[0]?.slug || "";
+  const resolvedWhiteSlug = whiteSlug || defaultWhiteSlug;
 
-    return models[0]?.slug ?? "";
-  }, [models]);
-
-  const preferredBlackSlug = useMemo(() => {
-    const preferred = [
-      "openrouter/auto",
-      "openrouter/free",
-      "google/gemma-3-12b-it:free",
-      "google/gemma-3-27b-it:free",
-      "qwen/qwen3-coder:free",
-      "claude-3-5-haiku",
-      "anthropic/claude-3-haiku",
-      "google/gemini-2.0-flash-001",
-      "gemini-2-0-flash",
-      "gpt-4o-mini",
-    ];
-
-    for (const slug of preferred) {
-      if (models.some((entry) => entry.slug === slug)) {
-        return slug;
-      }
-    }
-
-    return models[1]?.slug ?? models[0]?.slug ?? "";
-  }, [models]);
-
-  const resolvedWhiteSlug = whiteSlug || preferredWhiteSlug || "";
-  const fallbackBlackSlug =
+  const defaultBlackSlug =
+    freeModelSlugs.find((slug) => slug !== resolvedWhiteSlug) ||
     models.find((entry) => entry.slug !== resolvedWhiteSlug)?.slug ||
     resolvedWhiteSlug;
-  const resolvedBlackSlug =
-    blackSlug ||
-    (preferredBlackSlug && preferredBlackSlug !== resolvedWhiteSlug
-      ? preferredBlackSlug
-      : fallbackBlackSlug) ||
-    "";
+  const resolvedBlackSlug = blackSlug || defaultBlackSlug || "";
 
   const whiteModel = useMemo(
     () => models.find((entry) => entry.slug === resolvedWhiteSlug),
@@ -186,75 +148,130 @@ export function SimulationClient() {
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const startSimulation = async () => {
+    if (startingRef.current || isRunning) {
+      return;
+    }
+
+    startingRef.current = true;
+    setIsStarting(true);
+
+    const runToken = runTokenRef.current + 1;
+    runTokenRef.current = runToken;
+    runningRef.current = false;
+
     setError(null);
 
     if (catalogLoading) {
       setError("Model catalog is still loading.");
+      startingRef.current = false;
+      setIsStarting(false);
       return;
     }
 
     if (catalogError) {
       setError(catalogError.message);
+      startingRef.current = false;
+      setIsStarting(false);
       return;
     }
 
     if (!resolvedWhiteSlug || !resolvedBlackSlug) {
       setError("Select both models before starting the simulation.");
+      startingRef.current = false;
+      setIsStarting(false);
       return;
     }
 
     if (resolvedWhiteSlug === resolvedBlackSlug) {
       setError("Select two different models.");
+      startingRef.current = false;
+      setIsStarting(false);
       return;
     }
 
-    const response = await fetch("/api/game", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        whiteModelSlug: resolvedWhiteSlug,
-        blackModelSlug: resolvedBlackSlug,
-        maxPlies,
-      }),
-    });
+    let response: Response;
+    let payload: unknown;
 
-    const payload = await response.json();
-
-    if (!response.ok) {
-      setError(payload.error ?? "Could not start game");
-      return;
-    }
-
-    setGameId(payload.gameId);
-    setFen(payload.currentFen);
-    setMoves([]);
-    setStatus(payload.status);
-    setIsRunning(true);
-    runningRef.current = true;
-
-    let currentVersion = payload.version as number;
-
-    while (runningRef.current) {
-      const moveResponse = await fetch("/api/move", {
+    try {
+      response = await fetch("/api/game", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          gameId: payload.gameId,
-          expectedVersion: currentVersion,
+          whiteModelSlug: resolvedWhiteSlug,
+          blackModelSlug: resolvedBlackSlug,
+          maxPlies,
         }),
       });
 
-      const movePayload = await moveResponse.json();
+      payload = await response.json();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Could not start game";
+      setError(message);
+      setStatus("error");
+      startingRef.current = false;
+      setIsStarting(false);
+      return;
+    }
 
-      if (!moveResponse.ok) {
-        const message =
-          movePayload.details && movePayload.error
-            ? `${movePayload.error}: ${movePayload.details}`
-            : movePayload.error ?? "Move execution failed";
+    if (runTokenRef.current !== runToken) {
+      startingRef.current = false;
+      setIsStarting(false);
+      return;
+    }
+
+    const gamePayload = payload as {
+      error?: string;
+      details?: string;
+      gameId: string;
+      currentFen: string;
+      status: string;
+      version: number;
+    };
+
+    if (!response.ok) {
+      const message =
+        gamePayload.details && gamePayload.error
+          ? `${gamePayload.error}: ${gamePayload.details}`
+          : gamePayload.error ?? "Could not start game";
+      setError(message);
+      setStatus("error");
+      startingRef.current = false;
+      setIsStarting(false);
+      return;
+    }
+
+    setGameId(gamePayload.gameId);
+    setFen(gamePayload.currentFen);
+    setMoves([]);
+    setStatus(gamePayload.status);
+    setIsRunning(true);
+    runningRef.current = true;
+    startingRef.current = false;
+    setIsStarting(false);
+
+    let currentVersion = gamePayload.version;
+
+    while (runningRef.current && runTokenRef.current === runToken) {
+      let moveResponse: Response;
+      let movePayload: unknown;
+
+      try {
+        moveResponse = await fetch("/api/move", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            gameId: gamePayload.gameId,
+            expectedVersion: currentVersion,
+          }),
+        });
+
+        movePayload = await moveResponse.json();
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : "Move execution failed";
         setError(message);
         setStatus("error");
         runningRef.current = false;
@@ -262,15 +279,57 @@ export function SimulationClient() {
         break;
       }
 
-      if (movePayload.move) {
-        setMoves((previous) => [...previous, movePayload.move as MoveEntry]);
+      if (runTokenRef.current !== runToken) {
+        break;
       }
 
-      setFen(movePayload.state.currentFen);
-      setStatus(movePayload.state.status);
-      currentVersion = movePayload.state.version;
+      const stepPayload = movePayload as {
+        error?: string;
+        details?: string;
+        move?: MoveEntry;
+        state: {
+          currentFen: string;
+          status: string;
+          version: number;
+        };
+      };
 
-      if (movePayload.state.status !== "running") {
+      if (!moveResponse.ok) {
+        const message =
+          stepPayload.details && stepPayload.error
+            ? `${stepPayload.error}: ${stepPayload.details}`
+            : stepPayload.error ?? "Move execution failed";
+        setError(message);
+        setStatus("error");
+        runningRef.current = false;
+        setIsRunning(false);
+        break;
+      }
+
+      if (stepPayload.move) {
+        const incoming = stepPayload.move;
+
+        setMoves((previous) => {
+          const alreadyPresent = previous.some(
+            (entry) =>
+              entry.ply === incoming.ply &&
+              entry.uci === incoming.uci &&
+              entry.playedByModelId === incoming.playedByModelId,
+          );
+
+          if (alreadyPresent) {
+            return previous;
+          }
+
+          return [...previous, incoming];
+        });
+      }
+
+      setFen(stepPayload.state.currentFen);
+      setStatus(stepPayload.state.status);
+      currentVersion = stepPayload.state.version;
+
+      if (stepPayload.state.status !== "running") {
         runningRef.current = false;
         setIsRunning(false);
         break;
@@ -282,6 +341,9 @@ export function SimulationClient() {
 
   const stopSimulation = async () => {
     runningRef.current = false;
+    runTokenRef.current += 1;
+    startingRef.current = false;
+    setIsStarting(false);
     setIsRunning(false);
 
     if (!gameId) {
@@ -418,10 +480,10 @@ export function SimulationClient() {
           <button
             type="button"
             onClick={() => void startSimulation()}
-            disabled={isRunning || catalogLoading || models.length === 0}
+            disabled={isRunning || isStarting || catalogLoading || models.length === 0}
             className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-900/50 disabled:text-emerald-200"
           >
-            Start Simulation
+            {isStarting ? "Starting..." : "Start Simulation"}
           </button>
 
           <button
@@ -465,9 +527,9 @@ export function SimulationClient() {
           {moves.length === 0 ? (
             <p className="text-sm text-stone-400">No moves yet. Start a game to stream turns.</p>
           ) : (
-            moves.map((move) => (
+            moves.map((move, index) => (
               <div
-                key={`${move.ply}-${move.uci}`}
+                key={`${move.ply}-${move.uci}-${move.playedByModelId}-${index}`}
                 className="flex items-center justify-between rounded-lg border border-stone-700/50 bg-stone-900/70 px-3 py-2 text-sm"
               >
                 <span className="font-medium text-stone-200">{move.ply}. {move.san}</span>

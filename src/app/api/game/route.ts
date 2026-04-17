@@ -8,10 +8,8 @@ import { games } from "@/lib/db/schema";
 import {
   createGame,
   getGameById,
-  getModelBySlug,
   getModelsByIds,
   getMovesByGameId,
-  seedDefaultModels,
   upsertModelCatalogEntry,
 } from "@/lib/db/queries";
 
@@ -19,8 +17,6 @@ export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    await seedDefaultModels();
-
     const rawPayload = await request.json();
     const payload = createGameSchema.safeParse(rawPayload);
 
@@ -44,11 +40,6 @@ export async function POST(request: NextRequest) {
     }
 
     const resolveModel = async (slug: string) => {
-      const existing = await getModelBySlug(slug);
-      if (existing) {
-        return existing;
-      }
-
       const openRouterEntry = await getOpenRouterModelBySlug(slug);
       if (!openRouterEntry) {
         return null;

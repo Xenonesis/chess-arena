@@ -62,6 +62,14 @@ export function LeaderboardClient() {
     );
   }
 
+  if (data.items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-stone-700/40 bg-stone-950/70 p-6 text-stone-300">
+        No completed games yet. Run real simulations to populate the leaderboard.
+      </div>
+    );
+  }
+
   return (
     <section className="rounded-2xl border border-stone-700/40 bg-stone-950/70 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.35)] md:p-6">
       <div className="mb-4 flex items-center justify-between">

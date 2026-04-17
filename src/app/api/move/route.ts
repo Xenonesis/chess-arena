@@ -3,7 +3,6 @@ import { Chess } from "chess.js";
 import { NextRequest, NextResponse } from "next/server";
 import { requestOpenRouterMove } from "@/lib/ai/openrouter";
 import { moveStepSchema } from "@/lib/api/contracts";
-import { pickDeterministicFallbackMove } from "@/lib/chess/fallback";
 import {
   applyUciMove,
   extractUciMove,
@@ -131,7 +130,6 @@ export async function POST(request: NextRequest) {
     let rawOutput = "";
     let selectedUci: string | null = null;
     let source: MoveSource = "model";
-    let fallbackReason: string | null = null;
     let callFailureCode: string | null = null;
     let callFailureDetails: string | null = null;
 
@@ -182,24 +180,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!selectedUci || !legalUci.includes(selectedUci)) {
-      const fallback = pickDeterministicFallbackMove({
-        gameId: game.id,
-        ply: game.ply + 1,
-        modelId: modelForTurn.id,
-        fen: game.currentFen,
-        legalMoves,
-      });
-
-      if (!fallback) {
-        return NextResponse.json(
-          { error: "Fallback move selection failed" },
-          { status: 500 },
-        );
-      }
-
-      source = "fallback";
-      fallbackReason = fallbackReason ?? "invalid_or_unparsable_model_output";
-      selectedUci = fallback.uci;
+      return NextResponse.json(
+        {
+          error: "Model returned an invalid move",
+          details:
+            "Model output could not be parsed as a legal UCI move after retry.",
+          modelOutput: rawOutput.slice(0, 200),
+        },
+        { status: 422 },
+      );
     }
 
     const moveResult = applyUciMove(game.currentFen, selectedUci);
@@ -252,7 +241,6 @@ export async function POST(request: NextRequest) {
       fenBefore: game.currentFen,
       fenAfter: moveResult.fenAfter,
       source,
-      fallbackReason,
       modelRawOutput: rawOutput,
       latencyMs: Date.now() - startedAt,
     });
