@@ -28,21 +28,129 @@ const STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 const Chessboard = dynamic(
   () => import("react-chessboard").then((module) => module.Chessboard),
-  {
-    ssr: false,
-  },
+  { ssr: false },
 );
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
   const payload = (await response.json()) as CatalogResponse;
-
   if (!response.ok) {
-    throw new Error((payload as { details?: string; error?: string }).details ?? "Failed to load model catalog");
+    throw new Error(
+      (payload as { details?: string; error?: string }).details ??
+        "Failed to load model catalog",
+    );
   }
-
   return payload;
 };
+
+/* ─── Status badge colors ─── */
+function statusStyle(status: string): React.CSSProperties {
+  if (status === "running")
+    return { background: "var(--accent-dim)", color: "var(--accent)", borderColor: "var(--accent-border)" };
+  if (status === "error" || status === "aborted")
+    return { background: "var(--danger-dim)", color: "var(--danger)", borderColor: "rgba(248,113,113,0.28)" };
+  if (["checkmate", "stalemate", "draw"].includes(status))
+    return { background: "rgba(251,191,36,0.1)", color: "var(--warning)", borderColor: "rgba(251,191,36,0.25)" };
+  return {
+    background: "rgba(255,255,255,0.04)",
+    color: "var(--text-secondary)",
+    borderColor: "var(--border-strong)",
+  };
+}
+
+/* ─── Field label ─── */
+function Label({
+  children,
+  htmlFor,
+}: {
+  children: React.ReactNode;
+  htmlFor?: string;
+}) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      style={{
+        display: "grid",
+        gap: 6,
+        fontSize: 12,
+        fontWeight: 500,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        color: "var(--text-muted)",
+      }}
+    >
+      {children}
+    </label>
+  );
+}
+
+/* ─── Icon button ─── */
+function Btn({
+  children,
+  onClick,
+  disabled,
+  variant = "default",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: "accent" | "danger" | "default";
+}) {
+  const base: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "8px 18px",
+    borderRadius: 6,
+    fontSize: 13.5,
+    fontWeight: 600,
+    cursor: disabled ? "not-allowed" : "pointer",
+    border: "1px solid transparent",
+    transition: "opacity 0.15s, transform 0.12s",
+    fontFamily: "var(--font-dm-sans), sans-serif",
+    letterSpacing: "0.02em",
+  };
+
+  const styles: Record<string, React.CSSProperties> = {
+    accent: {
+      ...base,
+      background: disabled ? "rgba(74,222,128,0.12)" : "var(--accent)",
+      color: disabled ? "var(--accent)" : "#050a05",
+      opacity: disabled ? 0.45 : 1,
+    },
+    danger: {
+      ...base,
+      background: disabled ? "var(--danger-dim)" : "var(--danger)",
+      color: disabled ? "var(--danger)" : "#0a0303",
+      opacity: disabled ? 0.45 : 1,
+    },
+    default: {
+      ...base,
+      background: "transparent",
+      border: "1px solid var(--border-strong)",
+      color: disabled ? "var(--text-muted)" : "var(--text-secondary)",
+      opacity: disabled ? 0.4 : 1,
+    },
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={styles[variant]}
+      onMouseEnter={(e) => {
+        if (!disabled) (e.currentTarget as HTMLButtonElement).style.opacity = "0.82";
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled) (e.currentTarget as HTMLButtonElement).style.opacity = "1";
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function SimulationClient() {
   const {
@@ -72,17 +180,27 @@ export function SimulationClient() {
   const runningRef = useRef(false);
   const startingRef = useRef(false);
   const runTokenRef = useRef(0);
+  const moveListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return () => {
-      // Avoid orphaned move polling after route transitions/reloads.
       runningRef.current = false;
       runTokenRef.current += 1;
     };
   }, []);
 
+  /* Auto-scroll move list */
+  useEffect(() => {
+    if (moveListRef.current) {
+      moveListRef.current.scrollTop = moveListRef.current.scrollHeight;
+    }
+  }, [moves]);
+
   const freeModelSlugs = useMemo(
-    () => models.filter((entry) => entry.slug.includes(":free")).map((entry) => entry.slug),
+    () =>
+      models
+        .filter((entry) => entry.slug.includes(":free"))
+        .map((entry) => entry.slug),
     [models],
   );
 
@@ -105,52 +223,49 @@ export function SimulationClient() {
     [models, resolvedBlackSlug],
   );
 
-  const whiteOptions = useMemo(
-    () => {
-      const normalized = whiteSearch.trim().toLowerCase();
-      const filtered = !normalized
-        ? models
-        : models.filter((entry) => {
-            const haystack = `${entry.name} ${entry.provider} ${entry.openrouterModel}`.toLowerCase();
-            return haystack.includes(normalized);
-          });
+  const whiteOptions = useMemo(() => {
+    const normalized = whiteSearch.trim().toLowerCase();
+    const filtered = !normalized
+      ? models
+      : models.filter((entry) => {
+          const haystack =
+            `${entry.name} ${entry.provider} ${entry.openrouterModel}`.toLowerCase();
+          return haystack.includes(normalized);
+        });
+    if (
+      !resolvedWhiteSlug ||
+      filtered.some((entry) => entry.slug === resolvedWhiteSlug)
+    ) {
+      return filtered;
+    }
+    const selected = models.find((entry) => entry.slug === resolvedWhiteSlug);
+    return selected ? [selected, ...filtered] : filtered;
+  }, [models, whiteSearch, resolvedWhiteSlug]);
 
-      if (!resolvedWhiteSlug || filtered.some((entry) => entry.slug === resolvedWhiteSlug)) {
-        return filtered;
-      }
+  const blackOptions = useMemo(() => {
+    const normalized = blackSearch.trim().toLowerCase();
+    const filtered = !normalized
+      ? models
+      : models.filter((entry) => {
+          const haystack =
+            `${entry.name} ${entry.provider} ${entry.openrouterModel}`.toLowerCase();
+          return haystack.includes(normalized);
+        });
+    if (
+      !resolvedBlackSlug ||
+      filtered.some((entry) => entry.slug === resolvedBlackSlug)
+    ) {
+      return filtered;
+    }
+    const selected = models.find((entry) => entry.slug === resolvedBlackSlug);
+    return selected ? [selected, ...filtered] : filtered;
+  }, [models, blackSearch, resolvedBlackSlug]);
 
-      const selected = models.find((entry) => entry.slug === resolvedWhiteSlug);
-      return selected ? [selected, ...filtered] : filtered;
-    },
-    [models, whiteSearch, resolvedWhiteSlug],
-  );
-
-  const blackOptions = useMemo(
-    () => {
-      const normalized = blackSearch.trim().toLowerCase();
-      const filtered = !normalized
-        ? models
-        : models.filter((entry) => {
-            const haystack = `${entry.name} ${entry.provider} ${entry.openrouterModel}`.toLowerCase();
-            return haystack.includes(normalized);
-          });
-
-      if (!resolvedBlackSlug || filtered.some((entry) => entry.slug === resolvedBlackSlug)) {
-        return filtered;
-      }
-
-      const selected = models.find((entry) => entry.slug === resolvedBlackSlug);
-      return selected ? [selected, ...filtered] : filtered;
-    },
-    [models, blackSearch, resolvedBlackSlug],
-  );
-
-  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const delay = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
 
   const startSimulation = async () => {
-    if (startingRef.current || isRunning) {
-      return;
-    }
+    if (startingRef.current || isRunning) return;
 
     startingRef.current = true;
     setIsStarting(true);
@@ -167,21 +282,18 @@ export function SimulationClient() {
       setIsStarting(false);
       return;
     }
-
     if (catalogError) {
       setError(catalogError.message);
       startingRef.current = false;
       setIsStarting(false);
       return;
     }
-
     if (!resolvedWhiteSlug || !resolvedBlackSlug) {
       setError("Select both models before starting the simulation.");
       startingRef.current = false;
       setIsStarting(false);
       return;
     }
-
     if (resolvedWhiteSlug === resolvedBlackSlug) {
       setError("Select two different models.");
       startingRef.current = false;
@@ -195,19 +307,17 @@ export function SimulationClient() {
     try {
       response = await fetch("/api/game", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           whiteModelSlug: resolvedWhiteSlug,
           blackModelSlug: resolvedBlackSlug,
           maxPlies,
         }),
       });
-
       payload = await response.json();
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Could not start game";
+      const message =
+        cause instanceof Error ? cause.message : "Could not start game";
       setError(message);
       setStatus("error");
       startingRef.current = false;
@@ -260,18 +370,16 @@ export function SimulationClient() {
       try {
         moveResponse = await fetch("/api/move", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             gameId: gamePayload.gameId,
             expectedVersion: currentVersion,
           }),
         });
-
         movePayload = await moveResponse.json();
       } catch (cause) {
-        const message = cause instanceof Error ? cause.message : "Move execution failed";
+        const message =
+          cause instanceof Error ? cause.message : "Move execution failed";
         setError(message);
         setStatus("error");
         runningRef.current = false;
@@ -279,9 +387,7 @@ export function SimulationClient() {
         break;
       }
 
-      if (runTokenRef.current !== runToken) {
-        break;
-      }
+      if (runTokenRef.current !== runToken) break;
 
       const stepPayload = movePayload as {
         error?: string;
@@ -308,7 +414,6 @@ export function SimulationClient() {
 
       if (stepPayload.move) {
         const incoming = stepPayload.move;
-
         setMoves((previous) => {
           const alreadyPresent = previous.some(
             (entry) =>
@@ -316,11 +421,7 @@ export function SimulationClient() {
               entry.uci === incoming.uci &&
               entry.playedByModelId === incoming.playedByModelId,
           );
-
-          if (alreadyPresent) {
-            return previous;
-          }
-
+          if (alreadyPresent) return previous;
           return [...previous, incoming];
         });
       }
@@ -353,194 +454,609 @@ export function SimulationClient() {
 
     const response = await fetch("/api/result", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         gameId,
         result: "aborted",
         terminationReason: "manual_stop",
       }),
     });
-
     const payload = await response.json();
     if (!response.ok) {
       setError(payload.error ?? "Failed to stop game cleanly");
       return;
     }
-
     setStatus(payload.status ?? "aborted");
   };
 
+  /* Current player (ply count → whose turn) */
+  const currentPlayer =
+    moves.length % 2 === 0 ? "White" : "Black";
+  const currentModelName =
+    moves.length % 2 === 0
+      ? whiteModel?.name ?? "White"
+      : blackModel?.name ?? "Black";
+
   return (
-    <section className="grid gap-6 lg:grid-cols-[1fr_360px]">
-      <div className="rounded-2xl border border-stone-700/40 bg-stone-950/70 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm md:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold tracking-wide text-stone-100">
-            Live Arena
-          </h2>
-          <p className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-amber-200">
-            Status: {status}
-          </p>
-        </div>
-
-        <div className="overflow-hidden rounded-xl border border-stone-700/50">
-          <Chessboard
-            options={{
-              position: fen,
-              allowDragging: false,
+    <div
+      style={{
+        display: "grid",
+        gap: 16,
+        gridTemplateColumns: "1fr",
+      }}
+    >
+      {/* Main layout: board + right panel */}
+      <div
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "minmax(0, 1fr) 320px",
+          alignItems: "start",
+        }}
+        className="sim-grid"
+      >
+        {/* ── Left: Board panel ── */}
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            overflow: "hidden",
+          }}
+        >
+          {/* Board header */}
+          <div
+            style={{
+              padding: "14px 20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
             }}
-          />
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-sm text-stone-300">
-            White model
-            <input
-              type="text"
-              value={whiteSearch}
-              onChange={(event) => setWhiteSearch(event.target.value)}
-              placeholder="Search OpenRouter models..."
-              className="rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-100 placeholder:text-stone-500"
-              disabled={catalogLoading || models.length === 0}
-            />
-            <select
-              className="rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-100"
-              value={resolvedWhiteSlug}
-              onChange={(event) => setWhiteSlug(event.target.value)}
-              disabled={catalogLoading || models.length === 0}
-            >
-              {whiteOptions.length === 0 ? (
-                <option value="">No models match search</option>
-              ) : (
-                whiteOptions.map((model) => (
-                  <option key={model.id} value={model.slug}>
-                    {model.name} ({model.provider})
-                  </option>
-                ))
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {isRunning && (
+                <span
+                  className="live-dot"
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "var(--accent)",
+                    flexShrink: 0,
+                  }}
+                />
               )}
-            </select>
-          </label>
-
-          <label className="grid gap-1 text-sm text-stone-300">
-            Black model
-            <input
-              type="text"
-              value={blackSearch}
-              onChange={(event) => setBlackSearch(event.target.value)}
-              placeholder="Search OpenRouter models..."
-              className="rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-100 placeholder:text-stone-500"
-              disabled={catalogLoading || models.length === 0}
-            />
-            <select
-              className="rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-100"
-              value={resolvedBlackSlug}
-              onChange={(event) => setBlackSlug(event.target.value)}
-              disabled={catalogLoading || models.length === 0}
-            >
-              {blackOptions.length === 0 ? (
-                <option value="">No models match search</option>
-              ) : (
-                blackOptions.map((model) => (
-                  <option key={model.id} value={model.slug}>
-                    {model.name} ({model.provider})
-                  </option>
-                ))
-              )}
-            </select>
-          </label>
-
-          <label className="grid gap-1 text-sm text-stone-300">
-            Max plies
-            <input
-              type="number"
-              min={20}
-              max={400}
-              value={maxPlies}
-              onChange={(event) => setMaxPlies(Number(event.target.value))}
-              className="rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-100"
-            />
-          </label>
-
-          <label className="grid gap-1 text-sm text-stone-300">
-            Turn delay
-            <select
-              className="rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-100"
-              value={speedMs}
-              onChange={(event) => setSpeedMs(Number(event.target.value))}
-            >
-              <option value={250}>Fast</option>
-              <option value={900}>Balanced</option>
-              <option value={1500}>Slow</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="mt-5 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => void startSimulation()}
-            disabled={isRunning || isStarting || catalogLoading || models.length === 0}
-            className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-900/50 disabled:text-emerald-200"
-          >
-            {isStarting ? "Starting..." : "Start Simulation"}
-          </button>
-
-          <button
-            type="button"
-            onClick={stopSimulation}
-            disabled={!isRunning}
-            className="rounded-lg bg-rose-500 px-4 py-2 font-semibold text-rose-950 transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:bg-rose-900/50 disabled:text-rose-200"
-          >
-            Stop
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void refreshCatalog()}
-            className="rounded-lg border border-stone-500 px-4 py-2 font-semibold text-stone-200 transition hover:border-stone-300"
-          >
-            Refresh Models
-          </button>
-        </div>
-
-        {error ? (
-          <p className="mt-4 rounded-lg border border-rose-400/40 bg-rose-900/20 px-3 py-2 text-sm text-rose-200">
-            {error}
-          </p>
-        ) : null}
-
-        {!error && catalogError ? (
-          <p className="mt-4 rounded-lg border border-rose-400/40 bg-rose-900/20 px-3 py-2 text-sm text-rose-200">
-            {catalogError.message}
-          </p>
-        ) : null}
-
-        <p className="mt-4 text-xs uppercase tracking-[0.2em] text-stone-400">
-          {whiteModel?.name ?? "White"} vs {blackModel?.name ?? "Black"}
-        </p>
-      </div>
-
-      <aside className="rounded-2xl border border-stone-700/40 bg-stone-950/70 p-5 shadow-[0_12px_45px_rgba(0,0,0,0.3)] backdrop-blur-sm">
-        <h3 className="mb-3 text-lg font-semibold text-stone-100">Move History</h3>
-        <div className="max-h-[530px] space-y-2 overflow-auto pr-1">
-          {moves.length === 0 ? (
-            <p className="text-sm text-stone-400">No moves yet. Start a game to stream turns.</p>
-          ) : (
-            moves.map((move, index) => (
-              <div
-                key={`${move.ply}-${move.uci}-${move.playedByModelId}-${index}`}
-                className="flex items-center justify-between rounded-lg border border-stone-700/50 bg-stone-900/70 px-3 py-2 text-sm"
+              <span
+                style={{
+                  fontFamily: "var(--font-playfair), Georgia, serif",
+                  fontWeight: 600,
+                  fontSize: 16,
+                  color: "var(--text-primary)",
+                }}
               >
-                <span className="font-medium text-stone-200">{move.ply}. {move.san}</span>
-                <span className="rounded-full border border-stone-600 px-2 py-0.5 text-xs uppercase text-stone-300">
-                  {move.source}
+                Live Arena
+              </span>
+            </div>
+
+            {/* Status badge */}
+            <span
+              className="badge"
+              style={{
+                ...statusStyle(status),
+                border: "1px solid",
+              }}
+            >
+              {status}
+            </span>
+          </div>
+
+          {/* Black model label */}
+          <div
+            style={{
+              padding: "10px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              borderBottom: "1px solid var(--border)",
+              background: isRunning && currentPlayer === "Black"
+                ? "rgba(74,222,128,0.04)"
+                : "transparent",
+            }}
+          >
+            <span
+              style={{
+                width: 18,
+                height: 18,
+                background: "#222",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 3,
+                display: "inline-block",
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ fontSize: 13, color: "var(--text-secondary)", flex: 1 }}>
+              {blackModel?.name ?? "Black"}{" "}
+              {blackModel?.provider ? (
+                <span style={{ color: "var(--text-muted)" }}>
+                  · {blackModel.provider}
                 </span>
-              </div>
-            ))
+              ) : null}
+            </span>
+            {isRunning && currentPlayer === "Black" && (
+              <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>
+                Thinking…
+              </span>
+            )}
+          </div>
+
+          {/* Chess board */}
+          <div style={{ padding: 16 }}>
+            <div
+              style={{
+                borderRadius: 6,
+                overflow: "hidden",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <Chessboard
+                options={{
+                  position: fen,
+                  allowDragging: false,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* White model label */}
+          <div
+            style={{
+              padding: "10px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              borderTop: "1px solid var(--border)",
+              background: isRunning && currentPlayer === "White"
+                ? "rgba(74,222,128,0.04)"
+                : "transparent",
+            }}
+          >
+            <span
+              style={{
+                width: 18,
+                height: 18,
+                background: "#e8e8e8",
+                border: "1px solid rgba(0,0,0,0.2)",
+                borderRadius: 3,
+                display: "inline-block",
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ fontSize: 13, color: "var(--text-secondary)", flex: 1 }}>
+              {whiteModel?.name ?? "White"}{" "}
+              {whiteModel?.provider ? (
+                <span style={{ color: "var(--text-muted)" }}>
+                  · {whiteModel.provider}
+                </span>
+              ) : null}
+            </span>
+            {isRunning && currentPlayer === "White" && (
+              <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>
+                Thinking…
+              </span>
+            )}
+          </div>
+
+          {/* Error message */}
+          {(error || catalogError) && (
+            <div
+              style={{
+                margin: "0 16px 16px",
+                padding: "10px 14px",
+                borderRadius: 6,
+                border: "1px solid rgba(248,113,113,0.25)",
+                background: "var(--danger-dim)",
+                fontSize: 13,
+                color: "var(--danger)",
+                lineHeight: 1.5,
+              }}
+            >
+              {error ?? catalogError?.message}
+            </div>
           )}
         </div>
-      </aside>
-    </section>
+
+        {/* ── Right panel ── */}
+        <div style={{ display: "grid", gap: 12 }}>
+          {/* Config card */}
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              padding: "20px",
+            }}
+          >
+            <p
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "var(--text-muted)",
+                marginBottom: 18,
+              }}
+            >
+              Configuration
+            </p>
+
+            <div style={{ display: "grid", gap: 16 }}>
+              {/* White model */}
+              <Label>
+                White ♔
+                <input
+                  type="text"
+                  value={whiteSearch}
+                  onChange={(e) => setWhiteSearch(e.target.value)}
+                  placeholder="Filter models…"
+                  disabled={catalogLoading || models.length === 0}
+                />
+                <select
+                  value={resolvedWhiteSlug}
+                  onChange={(e) => setWhiteSlug(e.target.value)}
+                  disabled={catalogLoading || models.length === 0}
+                >
+                  {whiteOptions.length === 0 ? (
+                    <option value="">No models match</option>
+                  ) : (
+                    whiteOptions.map((model) => (
+                      <option key={model.id} value={model.slug}>
+                        {model.name} · {model.provider}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </Label>
+
+              {/* Black model */}
+              <Label>
+                Black ♚
+                <input
+                  type="text"
+                  value={blackSearch}
+                  onChange={(e) => setBlackSearch(e.target.value)}
+                  placeholder="Filter models…"
+                  disabled={catalogLoading || models.length === 0}
+                />
+                <select
+                  value={resolvedBlackSlug}
+                  onChange={(e) => setBlackSlug(e.target.value)}
+                  disabled={catalogLoading || models.length === 0}
+                >
+                  {blackOptions.length === 0 ? (
+                    <option value="">No models match</option>
+                  ) : (
+                    blackOptions.map((model) => (
+                      <option key={model.id} value={model.slug}>
+                        {model.name} · {model.provider}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </Label>
+
+              {/* Controls row */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <Label>
+                  Max Plies
+                  <input
+                    type="number"
+                    min={20}
+                    max={400}
+                    value={maxPlies}
+                    onChange={(e) => setMaxPlies(Number(e.target.value))}
+                  />
+                </Label>
+
+                <Label>
+                  Turn Delay
+                  <select
+                    value={speedMs}
+                    onChange={(e) => setSpeedMs(Number(e.target.value))}
+                  >
+                    <option value={250}>Fast</option>
+                    <option value={900}>Balanced</option>
+                    <option value={1500}>Slow</option>
+                  </select>
+                </Label>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 20,
+                flexWrap: "wrap",
+              }}
+            >
+              <Btn
+                variant="accent"
+                onClick={() => void startSimulation()}
+                disabled={
+                  isRunning || isStarting || catalogLoading || models.length === 0
+                }
+              >
+                {isStarting ? (
+                  <>
+                    <span
+                      className="spin"
+                      style={{
+                        display: "inline-block",
+                        width: 12,
+                        height: 12,
+                        border: "2px solid rgba(5,10,5,0.25)",
+                        borderTopColor: "#050a05",
+                        borderRadius: "50%",
+                      }}
+                    />
+                    Starting
+                  </>
+                ) : (
+                  "▶ Start"
+                )}
+              </Btn>
+
+              <Btn
+                variant="danger"
+                onClick={stopSimulation}
+                disabled={!isRunning}
+              >
+                ■ Stop
+              </Btn>
+
+              <Btn onClick={() => void refreshCatalog()}>↺ Refresh</Btn>
+            </div>
+          </div>
+
+          {/* Move history card */}
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "14px 16px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "var(--text-muted)",
+                }}
+              >
+                Move History
+              </span>
+              {moves.length > 0 && (
+                <span
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    borderRadius: 4,
+                    padding: "2px 8px",
+                    fontSize: 11,
+                    color: "var(--text-muted)",
+                    fontWeight: 500,
+                  }}
+                >
+                  {moves.length}
+                </span>
+              )}
+            </div>
+
+            <div
+              ref={moveListRef}
+              style={{
+                maxHeight: 400,
+                overflowY: "auto",
+                padding: "8px",
+              }}
+            >
+              {moves.length === 0 ? (
+                <p
+                  style={{
+                    padding: "20px 12px",
+                    fontSize: 13,
+                    color: "var(--text-muted)",
+                    textAlign: "center",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  No moves yet.
+                  <br />
+                  <span style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                    Start a game to stream turns.
+                  </span>
+                </p>
+              ) : (
+                <div style={{ display: "grid", gap: 2 }}>
+                  {moves.map((move, index) => {
+                    const isWhite = move.ply % 2 === 1;
+                    return (
+                      <div
+                        key={`${move.ply}-${move.uci}-${move.playedByModelId}-${index}`}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "6px 10px",
+                          borderRadius: 5,
+                          background:
+                            index === moves.length - 1
+                              ? "rgba(74,222,128,0.06)"
+                              : "transparent",
+                          border:
+                            index === moves.length - 1
+                              ? "1px solid rgba(74,222,128,0.12)"
+                              : "1px solid transparent",
+                          transition: "background 0.1s",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {/* Ply indicator */}
+                          <span
+                            style={{
+                              fontSize: 10,
+                              width: 28,
+                              color: "var(--text-muted)",
+                              fontWeight: 500,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {Math.ceil(move.ply / 2)}{isWhite ? "." : "…"}
+                          </span>
+                          {/* Color dot */}
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: isWhite ? "#e8e8e8" : "#333",
+                              border: isWhite
+                                ? "1px solid rgba(0,0,0,0.15)"
+                                : "1px solid rgba(255,255,255,0.12)",
+                              flexShrink: 0,
+                            }}
+                          />
+                          {/* Move in SAN */}
+                          <span
+                            style={{
+                              fontSize: 13.5,
+                              fontWeight: 600,
+                              color: "var(--text-primary)",
+                              fontFamily: "'Courier New', monospace",
+                              letterSpacing: "-0.01em",
+                            }}
+                          >
+                            {move.san}
+                          </span>
+                        </div>
+
+                        {/* Source badge */}
+                        {move.source === "retry" && (
+                          <span
+                            style={{
+                              fontSize: 9.5,
+                              fontWeight: 600,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                              color: "var(--warning)",
+                              background: "rgba(251,191,36,0.08)",
+                              borderRadius: 3,
+                              padding: "2px 5px",
+                              border: "1px solid rgba(251,191,36,0.2)",
+                            }}
+                          >
+                            retry
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Game stats card — show when a game is active or completed */}
+          {(isRunning || moves.length > 0) && (
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "16px",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "var(--text-muted)",
+                  marginBottom: 14,
+                }}
+              >
+                Game Stats
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {[
+                  { label: "Total Plies", value: moves.length },
+                  {
+                    label: "Full Moves",
+                    value: Math.ceil(moves.length / 2),
+                  },
+                  {
+                    label: "Retries",
+                    value: moves.filter((m) => m.source === "retry").length,
+                  },
+                  {
+                    label: "Turn",
+                    value: isRunning ? currentModelName : "—",
+                  },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <p
+                      style={{
+                        fontSize: 10.5,
+                        color: "var(--text-muted)",
+                        fontWeight: 500,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        marginBottom: 3,
+                      }}
+                    >
+                      {label}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: 18,
+                        fontFamily: "var(--font-playfair), Georgia, serif",
+                        fontWeight: 600,
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Responsive styles injected once */}
+      <style>{`
+        @media (max-width: 900px) {
+          .sim-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </div>
   );
 }

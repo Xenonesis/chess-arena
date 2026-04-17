@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Cinzel, Source_Sans_3 } from "next/font/google";
+import { DM_Sans, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
-const cinzel = Cinzel({
-  variable: "--font-cinzel",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
 });
 
-const sourceSans = Source_Sans_3({
-  variable: "--font-source-sans",
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "AI Chess Simulation Platform",
+  title: "Chess Arena — AI Benchmarking Platform",
   description:
-    "Benchmark LLM models by running persistent AI-vs-AI chess simulations.",
+    "Benchmark frontier LLM models by running AI-vs-AI chess simulations with verified move legality and persistent scoring.",
 };
 
 export default function RootLayout({
@@ -27,27 +29,104 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${cinzel.variable} ${sourceSans.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${playfair.variable} h-full`}
     >
-      <body className="min-h-full bg-stone-950 text-stone-100">
-        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(251,191,36,0.12),transparent_45%),radial-gradient(circle_at_80%_10%,rgba(45,212,191,0.12),transparent_35%),linear-gradient(160deg,#090909,#121212_50%,#171717)]" />
-        <div className="min-h-full flex flex-col">
-          <header className="border-b border-stone-700/50 bg-stone-950/70 backdrop-blur-md">
-            <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 md:px-8">
-              <Link href="/" className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-300">
+      <body className="min-h-full flex flex-col" style={{ background: "var(--bg)" }}>
+        <style>{`
+          .nav-link {
+            padding: 5px 14px;
+            border-radius: 6px;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.15s, background 0.15s;
+            letter-spacing: 0.01em;
+          }
+          .nav-link:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+          }
+        `}</style>
+
+        {/* Top navigation bar */}
+        <header
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 50,
+            background: "rgba(13,13,13,0.88)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1280,
+              margin: "0 auto",
+              padding: "0 24px",
+              height: 56,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+            }}
+          >
+            {/* Logo / brand */}
+            <Link
+              href="/"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                textDecoration: "none",
+              }}
+            >
+              <span
+                style={{
+                  width: 28,
+                  height: 28,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "var(--accent)",
+                  borderRadius: 6,
+                  color: "#000",
+                  fontSize: 15,
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                ♛
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-playfair), Georgia, serif",
+                  fontWeight: 600,
+                  fontSize: 17,
+                  color: "var(--text-primary)",
+                  letterSpacing: "-0.01em",
+                }}
+              >
                 Chess Arena
+              </span>
+            </Link>
+
+            {/* Navigation links */}
+            <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <Link href="/game" className="nav-link">
+                Simulation
               </Link>
-              <nav className="flex items-center gap-3 text-sm text-stone-300">
-                <Link className="rounded-lg px-3 py-1.5 transition hover:bg-stone-800" href="/game">
-                  Simulation
-                </Link>
-                <Link className="rounded-lg px-3 py-1.5 transition hover:bg-stone-800" href="/leaderboard">
-                  Leaderboard
-                </Link>
-              </nav>
-            </div>
-          </header>
-          <div className="flex flex-1">{children}</div>
+              <Link href="/leaderboard" className="nav-link">
+                Leaderboard
+              </Link>
+            </nav>
+          </div>
+        </header>
+
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          {children}
         </div>
       </body>
     </html>
