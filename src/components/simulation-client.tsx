@@ -1,8 +1,24 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import useSWR from "swr";
+
+function getProviderConfig(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const config: Record<string, string> = {};
+  const orKey = localStorage.getItem("chess_arena_openrouter_key");
+  const groqKey = localStorage.getItem("chess_arena_groq_key");
+  if (orKey) config.openrouterApiKey = orKey;
+  if (groqKey) config.groqApiKey = groqKey;
+  return config;
+}
+
+function providerHeader(): HeadersInit {
+  const config = getProviderConfig();
+  if (Object.keys(config).length === 0) return {};
+  return { "x-provider-config": JSON.stringify(config) };
+}
 
 export type CatalogModel = {
   id: string;
@@ -32,7 +48,7 @@ const Chessboard = dynamic(
 );
 
 const fetcher = async (url: string) => {
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: providerHeader() });
   const payload = (await response.json()) as CatalogResponse;
   if (!response.ok) {
     throw new Error(
@@ -307,7 +323,7 @@ export function SimulationClient() {
     try {
       response = await fetch("/api/game", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...providerHeader() },
         body: JSON.stringify({
           whiteModelSlug: resolvedWhiteSlug,
           blackModelSlug: resolvedBlackSlug,
@@ -370,7 +386,7 @@ export function SimulationClient() {
       try {
         moveResponse = await fetch("/api/move", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...providerHeader() },
           body: JSON.stringify({
             gameId: gamePayload.gameId,
             expectedVersion: currentVersion,

@@ -1,22 +1,16 @@
 import OpenAI from "openai";
 import { getEnv } from "@/lib/config/env";
 
-function extractTextContent(content: OpenAI.Chat.Completions.ChatCompletionMessageParam["content"] | null | undefined) {
-  if (!content) {
-    return "";
-  }
-
-  if (typeof content === "string") {
-    return content;
-  }
-
+function extractTextContent(
+  content:
+    | OpenAI.Chat.Completions.ChatCompletionMessageParam["content"]
+    | null
+    | undefined,
+) {
+  if (!content) return "";
+  if (typeof content === "string") return content;
   return content
-    .map((part) => {
-      if (part.type === "text") {
-        return part.text;
-      }
-      return "";
-    })
+    .map((part) => (part.type === "text" ? part.text : ""))
     .join(" ")
     .trim();
 }
@@ -26,15 +20,18 @@ export async function requestOpenRouterMove(input: {
   modelName: string;
   strict: boolean;
   legalMoves?: string[];
+  /** Override API key (from user settings). Falls back to env var. */
+  apiKey?: string;
 }) {
   const env = getEnv();
+  const apiKey = input.apiKey ?? env.OPENROUTER_API_KEY;
 
-  if (!env.OPENROUTER_API_KEY) {
-    throw new Error("OPENROUTER_API_KEY is missing.");
+  if (!apiKey) {
+    throw new Error("OpenRouter API key is missing.");
   }
 
   const client = new OpenAI({
-    apiKey: env.OPENROUTER_API_KEY,
+    apiKey,
     baseURL: env.OPENROUTER_BASE_URL,
     defaultHeaders: {
       "HTTP-Referer": "https://localhost",

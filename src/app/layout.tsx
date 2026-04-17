@@ -121,6 +121,9 @@ export default function RootLayout({
               <Link href="/leaderboard" className="nav-link">
                 Leaderboard
               </Link>
+              <Link href="/settings" className="nav-link">
+                Settings
+              </Link>
             </nav>
           </div>
         </header>

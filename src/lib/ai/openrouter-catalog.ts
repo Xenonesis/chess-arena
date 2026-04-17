@@ -16,6 +16,7 @@ const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 let cachedCatalog: {
   expiresAt: number;
   items: ModelCatalogEntry[];
+  keyUsed: string;
 } | null = null;
 
 function normalizeBaseUrl(baseUrl: string) {
@@ -48,21 +49,27 @@ function inferName(modelId: string, displayName?: string) {
   return titleCase(modelName.replace(/\./g, " "));
 }
 
-export async function listOpenRouterCatalog() {
+export async function listOpenRouterCatalog(overrideApiKey?: string) {
   const now = Date.now();
-  if (cachedCatalog && cachedCatalog.expiresAt > now) {
+  const env = getEnv();
+  const apiKey = overrideApiKey ?? env.OPENROUTER_API_KEY ?? "";
+
+  if (
+    cachedCatalog &&
+    cachedCatalog.expiresAt > now &&
+    cachedCatalog.keyUsed === apiKey
+  ) {
     return cachedCatalog.items;
   }
 
-  const env = getEnv();
   const headers = new Headers({
     "Content-Type": "application/json",
     "HTTP-Referer": "https://localhost",
     "X-Title": env.OPENROUTER_APP_NAME,
   });
 
-  if (env.OPENROUTER_API_KEY) {
-    headers.set("Authorization", `Bearer ${env.OPENROUTER_API_KEY}`);
+  if (apiKey) {
+    headers.set("Authorization", `Bearer ${apiKey}`);
   }
 
   const response = await fetch(
@@ -105,12 +112,16 @@ export async function listOpenRouterCatalog() {
   cachedCatalog = {
     expiresAt: now + CATALOG_CACHE_TTL_MS,
     items,
+    keyUsed: apiKey,
   };
 
   return items;
 }
 
-export async function getOpenRouterModelBySlug(slug: string) {
-  const catalog = await listOpenRouterCatalog();
+export async function getOpenRouterModelBySlug(
+  slug: string,
+  overrideApiKey?: string,
+) {
+  const catalog = await listOpenRouterCatalog(overrideApiKey);
   return catalog.find((entry) => entry.slug === slug) ?? null;
 }

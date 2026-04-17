@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { Chess } from "chess.js";
 import { NextRequest, NextResponse } from "next/server";
-import { requestOpenRouterMove } from "@/lib/ai/openrouter";
+import { requestMove, type ProviderConfig } from "@/lib/ai/dispatcher";
 import { moveStepSchema } from "@/lib/api/contracts";
 import {
   applyUciMove,
@@ -20,6 +20,16 @@ import { games, moves, type GameResult, type MoveSource } from "@/lib/db/schema"
 
 export const runtime = "nodejs";
 
+function parseProviderConfig(request: NextRequest): ProviderConfig {
+  try {
+    const raw = request.headers.get("x-provider-config");
+    if (!raw) return {};
+    return JSON.parse(raw) as ProviderConfig;
+  } catch {
+    return {};
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const rawPayload = await request.json();
@@ -34,6 +44,8 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    const providerConfig = parseProviderConfig(request);
 
     const game = await getGameById(payload.data.gameId);
     if (!game) {
@@ -136,41 +148,43 @@ export async function POST(request: NextRequest) {
     const startedAt = Date.now();
 
     try {
-      rawOutput = await requestOpenRouterMove({
+      rawOutput = await requestMove({
         fen: game.currentFen,
         modelName: modelForTurn.openrouterModel,
         strict: false,
+        providerConfig,
       });
       selectedUci = extractUciMove(rawOutput);
     } catch (error) {
-      callFailureCode = "openrouter_call_failed";
+      callFailureCode = "ai_call_failed";
       callFailureDetails =
-        error instanceof Error ? error.message : "Unknown OpenRouter error";
+        error instanceof Error ? error.message : "Unknown error";
     }
 
     if (!selectedUci || !legalUci.includes(selectedUci)) {
       try {
         source = "retry";
-        rawOutput = await requestOpenRouterMove({
+        rawOutput = await requestMove({
           fen: game.currentFen,
           modelName: modelForTurn.openrouterModel,
           strict: true,
           legalMoves: legalUci,
+          providerConfig,
         });
         selectedUci = extractUciMove(rawOutput);
         callFailureCode = null;
         callFailureDetails = null;
       } catch (error) {
-        callFailureCode = "openrouter_retry_call_failed";
+        callFailureCode = "ai_retry_call_failed";
         callFailureDetails =
-          error instanceof Error ? error.message : "Unknown OpenRouter error";
+          error instanceof Error ? error.message : "Unknown error";
       }
     }
 
     if (callFailureCode) {
       return NextResponse.json(
         {
-          error: "OpenRouter call failed",
+          error: "AI call failed",
           details: callFailureDetails
             ? `${callFailureCode}: ${callFailureDetails}`
             : callFailureCode,
