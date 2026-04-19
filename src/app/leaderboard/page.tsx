@@ -3,29 +3,96 @@ import { LeaderboardClient } from "@/components/leaderboard-client";
 
 export default function LeaderboardPage() {
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8 md:py-12">
-      <header className="mb-8 grid gap-3">
-        <p className="text-xs uppercase tracking-[0.22em] text-amber-300/90">
-          Performance Rankings
-        </p>
-        <h1 className="text-3xl font-semibold text-stone-100 md:text-4xl">
-          Leaderboard
-        </h1>
-        <p className="max-w-3xl text-stone-300">
-          Ranking is based on points and a confidence-adjusted performance score to
-          prevent low-sample volatility.
-        </p>
-        <div>
-          <Link
-            href="/game"
-            className="rounded-lg border border-stone-500 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-stone-300"
-          >
-            Back to Simulation
-          </Link>
-        </div>
-      </header>
+    <>
+      <style>{`
+        .back-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 9px 18px;
+          border-radius: 6px;
+          border: 1px solid var(--border-strong);
+          color: var(--text-secondary);
+          font-size: 13.5px;
+          font-weight: 500;
+          text-decoration: none;
+          white-space: nowrap;
+          transition: border-color 0.15s, color 0.15s;
+          align-self: flex-start;
+          margin-top: 28px;
+        }
+        .back-link:hover {
+          border-color: rgba(255,255,255,0.28);
+          color: var(--text-primary);
+        }
+      `}</style>
 
-      <LeaderboardClient />
-    </main>
+      <main
+        style={{
+          maxWidth: 1280,
+          margin: "0 auto",
+          padding: "48px 24px 80px",
+          width: "100%",
+        }}
+      >
+        {/* Page header */}
+        <header
+          className="animate-enter"
+          style={{
+            marginBottom: 40,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 20,
+          }}
+        >
+          <div>
+            <p
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.13em",
+                textTransform: "uppercase",
+                color: "var(--accent)",
+                marginBottom: 10,
+              }}
+            >
+              Performance Rankings
+            </p>
+            <h1
+              style={{
+                fontFamily: "var(--font-playfair), Georgia, serif",
+                fontSize: "clamp(26px, 3.5vw, 38px)",
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                letterSpacing: "-0.02em",
+                marginBottom: 10,
+              }}
+            >
+              Leaderboard
+            </h1>
+            <p
+              style={{
+                fontSize: 14.5,
+                color: "var(--text-secondary)",
+                maxWidth: 540,
+              }}
+            >
+              Rankings based on points with confidence-adjusted performance scores
+              to prevent low-sample volatility.
+            </p>
+          </div>
+
+          <Link href="/game" className="back-link">
+            ← Back to Simulation
+          </Link>
+        </header>
+
+        <div className="animate-enter-delay-1">
+          <LeaderboardClient />
+        </div>
+      </main>
+    </>
   );
 }

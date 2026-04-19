@@ -1,9 +1,6 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import {
-  DEFAULT_MODEL_CATALOG,
-  type ModelCatalogEntry,
-} from "@/lib/ai/model-catalog";
+import { type ModelCatalogEntry } from "@/lib/ai/model-catalog";
 import { games, models, moves, type GameResult } from "@/lib/db/schema";
 import { getConfidenceScore, getPointsDelta } from "@/lib/ranking/points";
 
@@ -13,30 +10,6 @@ function ensureDatabaseConfigured() {
     throw new Error(
       "DATABASE_URL is not configured. Update .env.local with a real Neon/Postgres URL, then run npm run db:migrate.",
     );
-  }
-}
-
-export async function seedDefaultModels() {
-  ensureDatabaseConfigured();
-
-  for (const entry of DEFAULT_MODEL_CATALOG) {
-    try {
-      await db
-        .insert(models)
-        .values({
-          id: crypto.randomUUID(),
-          slug: entry.slug,
-          name: entry.name,
-          provider: entry.provider,
-          openrouterModel: entry.openrouterModel,
-        })
-        .onConflictDoNothing();
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `Failed to seed model catalog. Ensure migrations ran (npm run db:migrate) and DATABASE_URL points to that DB. Cause: ${reason}`,
-      );
-    }
   }
 }
 
@@ -214,7 +187,7 @@ export async function getLeaderboardRows() {
       score: models.score,
     })
     .from(models)
-    .where(eq(models.isActive, true))
+    .where(and(eq(models.isActive, true), gt(models.totalGames, 0)))
     .orderBy(desc(models.score), desc(models.totalGames), desc(models.wins));
 
   return rows.map((row) => {

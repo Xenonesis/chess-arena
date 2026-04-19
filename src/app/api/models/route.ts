@@ -1,42 +1,46 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { listOpenRouterCatalog } from "@/lib/ai/openrouter-catalog";
-import { getActiveModels, seedDefaultModels } from "@/lib/db/queries";
+import { listGroqModels } from "@/lib/ai/groq";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+function parseProviderConfig(request: NextRequest) {
   try {
-    await seedDefaultModels();
+    const raw = request.headers.get("x-provider-config");
+    if (!raw) return {} as Record<string, string>;
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {} as Record<string, string>;
+  }
+}
 
-    const [databaseModels, openRouterModels] = await Promise.all([
-      getActiveModels(),
-      listOpenRouterCatalog().catch(() => []),
-    ]);
+export async function GET(request: NextRequest) {
+  try {
+    const providerConfig = parseProviderConfig(request);
 
-    const mergedByOpenRouterModel = new Map(
-      databaseModels.map((entry) => [entry.openrouterModel, entry]),
+    const openrouterModels = await listOpenRouterCatalog(
+      providerConfig.openrouterApiKey,
     );
 
-    for (const entry of openRouterModels) {
-      if (mergedByOpenRouterModel.has(entry.openrouterModel)) {
-        continue;
+    let groqModels: Awaited<ReturnType<typeof listGroqModels>> = [];
+    if (providerConfig.groqApiKey) {
+      try {
+        groqModels = await listGroqModels(providerConfig.groqApiKey);
+      } catch {
+        // Silently skip Groq if key is invalid — error shown in settings
       }
+    }
 
-      mergedByOpenRouterModel.set(entry.openrouterModel, {
+    const allModels = [...openrouterModels, ...groqModels];
+
+    return NextResponse.json({
+      items: allModels.map((entry) => ({
         id: entry.openrouterModel,
         slug: entry.slug,
         name: entry.name,
         provider: entry.provider,
         openrouterModel: entry.openrouterModel,
-      });
-    }
-
-    const models = Array.from(mergedByOpenRouterModel.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
-
-    return NextResponse.json({
-      items: models,
+      })),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

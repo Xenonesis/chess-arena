@@ -1,9 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { Chess } from "chess.js";
 import { NextRequest, NextResponse } from "next/server";
-import { requestOpenRouterMove } from "@/lib/ai/openrouter";
+import { requestMove, type ProviderConfig } from "@/lib/ai/dispatcher";
 import { moveStepSchema } from "@/lib/api/contracts";
-import { pickDeterministicFallbackMove } from "@/lib/chess/fallback";
 import {
   applyUciMove,
   extractUciMove,
@@ -21,6 +20,16 @@ import { games, moves, type GameResult, type MoveSource } from "@/lib/db/schema"
 
 export const runtime = "nodejs";
 
+function parseProviderConfig(request: NextRequest): ProviderConfig {
+  try {
+    const raw = request.headers.get("x-provider-config");
+    if (!raw) return {};
+    return JSON.parse(raw) as ProviderConfig;
+  } catch {
+    return {};
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const rawPayload = await request.json();
@@ -35,6 +44,8 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    const providerConfig = parseProviderConfig(request);
 
     const game = await getGameById(payload.data.gameId);
     if (!game) {
@@ -131,48 +142,49 @@ export async function POST(request: NextRequest) {
     let rawOutput = "";
     let selectedUci: string | null = null;
     let source: MoveSource = "model";
-    let fallbackReason: string | null = null;
     let callFailureCode: string | null = null;
     let callFailureDetails: string | null = null;
 
     const startedAt = Date.now();
 
     try {
-      rawOutput = await requestOpenRouterMove({
+      rawOutput = await requestMove({
         fen: game.currentFen,
         modelName: modelForTurn.openrouterModel,
         strict: false,
+        providerConfig,
       });
       selectedUci = extractUciMove(rawOutput);
     } catch (error) {
-      callFailureCode = "openrouter_call_failed";
+      callFailureCode = "ai_call_failed";
       callFailureDetails =
-        error instanceof Error ? error.message : "Unknown OpenRouter error";
+        error instanceof Error ? error.message : "Unknown error";
     }
 
     if (!selectedUci || !legalUci.includes(selectedUci)) {
       try {
         source = "retry";
-        rawOutput = await requestOpenRouterMove({
+        rawOutput = await requestMove({
           fen: game.currentFen,
           modelName: modelForTurn.openrouterModel,
           strict: true,
           legalMoves: legalUci,
+          providerConfig,
         });
         selectedUci = extractUciMove(rawOutput);
         callFailureCode = null;
         callFailureDetails = null;
       } catch (error) {
-        callFailureCode = "openrouter_retry_call_failed";
+        callFailureCode = "ai_retry_call_failed";
         callFailureDetails =
-          error instanceof Error ? error.message : "Unknown OpenRouter error";
+          error instanceof Error ? error.message : "Unknown error";
       }
     }
 
     if (callFailureCode) {
       return NextResponse.json(
         {
-          error: "OpenRouter call failed",
+          error: "AI call failed",
           details: callFailureDetails
             ? `${callFailureCode}: ${callFailureDetails}`
             : callFailureCode,
@@ -182,24 +194,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!selectedUci || !legalUci.includes(selectedUci)) {
-      const fallback = pickDeterministicFallbackMove({
-        gameId: game.id,
-        ply: game.ply + 1,
-        modelId: modelForTurn.id,
-        fen: game.currentFen,
-        legalMoves,
-      });
-
-      if (!fallback) {
-        return NextResponse.json(
-          { error: "Fallback move selection failed" },
-          { status: 500 },
-        );
-      }
-
-      source = "fallback";
-      fallbackReason = fallbackReason ?? "invalid_or_unparsable_model_output";
-      selectedUci = fallback.uci;
+      return NextResponse.json(
+        {
+          error: "Model returned an invalid move",
+          details:
+            "Model output could not be parsed as a legal UCI move after retry.",
+          modelOutput: rawOutput.slice(0, 200),
+        },
+        { status: 422 },
+      );
     }
 
     const moveResult = applyUciMove(game.currentFen, selectedUci);
@@ -252,7 +255,6 @@ export async function POST(request: NextRequest) {
       fenBefore: game.currentFen,
       fenAfter: moveResult.fenAfter,
       source,
-      fallbackReason,
       modelRawOutput: rawOutput,
       latencyMs: Date.now() - startedAt,
     });

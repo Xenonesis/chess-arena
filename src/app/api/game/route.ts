@@ -2,25 +2,32 @@ import { Chess } from "chess.js";
 import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenRouterModelBySlug } from "@/lib/ai/openrouter-catalog";
+import { listGroqModels } from "@/lib/ai/groq";
 import { createGameSchema } from "@/lib/api/contracts";
 import { db } from "@/lib/db/client";
 import { games } from "@/lib/db/schema";
 import {
   createGame,
   getGameById,
-  getModelBySlug,
   getModelsByIds,
   getMovesByGameId,
-  seedDefaultModels,
   upsertModelCatalogEntry,
 } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
 
+function parseProviderConfig(request: NextRequest) {
+  try {
+    const raw = request.headers.get("x-provider-config");
+    if (!raw) return {} as Record<string, string>;
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {} as Record<string, string>;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    await seedDefaultModels();
-
     const rawPayload = await request.json();
     const payload = createGameSchema.safeParse(rawPayload);
 
@@ -43,17 +50,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const providerConfig = parseProviderConfig(request);
+
     const resolveModel = async (slug: string) => {
-      const existing = await getModelBySlug(slug);
-      if (existing) {
-        return existing;
+      // Groq model slugs are prefixed with "groq:"
+      if (slug.startsWith("groq:")) {
+        const groqModel = slug.slice("groq:".length);
+        const groqApiKey = providerConfig.groqApiKey;
+        if (!groqApiKey) return null;
+        try {
+          const groqModels = await listGroqModels(groqApiKey);
+          const found = groqModels.find((m) => m.groqModel === groqModel);
+          if (!found) return null;
+          return upsertModelCatalogEntry({
+            slug: found.slug,
+            name: found.name,
+            provider: found.provider,
+            openrouterModel: found.slug, // stored as "groq:<modelId>"
+          });
+        } catch {
+          return null;
+        }
       }
 
-      const openRouterEntry = await getOpenRouterModelBySlug(slug);
-      if (!openRouterEntry) {
-        return null;
-      }
-
+      const openRouterEntry = await getOpenRouterModelBySlug(
+        slug,
+        providerConfig.openrouterApiKey,
+      );
+      if (!openRouterEntry) return null;
       return upsertModelCatalogEntry(openRouterEntry);
     };
 
