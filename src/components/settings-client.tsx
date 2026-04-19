@@ -114,7 +114,8 @@ function StatusChip({ status, message }: { status: KeyState["status"]; message: 
         gap: 7,
         padding: "9px 12px",
         borderRadius: 6,
-        border: "1px solid",
+        borderStyle: "solid",
+        borderWidth: 1,
         fontSize: 13,
         lineHeight: 1.45,
         marginTop: 10,
@@ -199,7 +200,8 @@ function ProviderCard({
             textTransform: "uppercase",
             padding: "3px 9px",
             borderRadius: 4,
-            border: "1px solid",
+            borderStyle: "solid",
+            borderWidth: 1,
             ...(state.saved && state.status !== "invalid"
               ? {
                   color: "var(--accent)",

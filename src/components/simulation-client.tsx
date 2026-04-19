@@ -561,7 +561,8 @@ export function SimulationClient() {
               className="badge"
               style={{
                 ...statusStyle(status),
-                border: "1px solid",
+                borderStyle: "solid",
+                borderWidth: 1,
               }}
             >
               {status}
@@ -813,7 +814,9 @@ export function SimulationClient() {
                         display: "inline-block",
                         width: 12,
                         height: 12,
-                        border: "2px solid rgba(5,10,5,0.25)",
+                        borderStyle: "solid",
+                        borderWidth: 2,
+                        borderColor: "rgba(5,10,5,0.25)",
                         borderTopColor: "#050a05",
                         borderRadius: "50%",
                       }}
