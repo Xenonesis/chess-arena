@@ -685,16 +685,27 @@ export function SimulationClient() {
         </div>
 
         {/* ── Right panel ── */}
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 16 }}>
           {/* Config card */}
           <div
             style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              padding: "20px",
+              background: "linear-gradient(160deg, rgba(20,20,20,0.9), rgba(10,10,10,0.95))",
+              border: "1px solid rgba(255,255,255,0.06)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
+              borderRadius: 12,
+              padding: "24px",
+              position: "relative",
+              overflow: "hidden",
             }}
           >
+            {/* Subtle glow effect behind config */}
+            <div style={{
+              position: "absolute",
+              top: 0, left: "50%",
+              transform: "translateX(-50%)",
+              width: "80%", height: 1,
+              background: "linear-gradient(90deg, transparent, rgba(74, 222, 128, 0.15), transparent)"
+            }}/>
             <p
               style={{
                 fontSize: 11,
@@ -708,21 +719,36 @@ export function SimulationClient() {
               Configuration
             </p>
 
-            <div style={{ display: "grid", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {/* White model */}
-              <Label>
-                White ♔
-                <input
-                  type="text"
-                  value={whiteSearch}
-                  onChange={(e) => setWhiteSearch(e.target.value)}
-                  placeholder="Filter models…"
-                  disabled={catalogLoading || models.length === 0}
-                />
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <div style={{
+                    width: 22, height: 22, background: "linear-gradient(135deg, #ffffff, #e0e0e0)", borderRadius: 5,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 2px 8px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.5)"
+                  }}>
+                    <span style={{ color: "#000", fontSize: 14, lineHeight: 1, filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.2))" }}>♔</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ececec" }}>White Player</span>
+                </div>
+                <div style={{ position: "relative" }}>
+                  <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <input
+                    type="text"
+                    value={whiteSearch}
+                    onChange={(e) => setWhiteSearch(e.target.value)}
+                    placeholder="Search model catalog…"
+                    disabled={catalogLoading || models.length === 0}
+                    style={{ paddingLeft: 30, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "6px" }}
+                  />
+                </div>
                 <select
                   value={resolvedWhiteSlug}
                   onChange={(e) => setWhiteSlug(e.target.value)}
                   disabled={catalogLoading || models.length === 0}
+                  style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", marginTop: -2 }}
+                  title={whiteModel ? `${whiteModel.name} · ${whiteModel.provider}` : "Select White Model"}
                 >
                   {whiteOptions.length === 0 ? (
                     <option value="">No models match</option>
@@ -734,22 +760,38 @@ export function SimulationClient() {
                     ))
                   )}
                 </select>
-              </Label>
+              </div>
 
               {/* Black model */}
-              <Label>
-                Black ♚
-                <input
-                  type="text"
-                  value={blackSearch}
-                  onChange={(e) => setBlackSearch(e.target.value)}
-                  placeholder="Filter models…"
-                  disabled={catalogLoading || models.length === 0}
-                />
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <div style={{
+                    width: 22, height: 22, background: "linear-gradient(135deg, #333333, #1a1a1a)", borderRadius: 5,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)",
+                    border: "1px solid rgba(255,255,255,0.1)"
+                  }}>
+                    <span style={{ color: "#ececec", fontSize: 13, lineHeight: 1 }}>♚</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ececec" }}>Black Player</span>
+                </div>
+                <div style={{ position: "relative" }}>
+                  <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <input
+                    type="text"
+                    value={blackSearch}
+                    onChange={(e) => setBlackSearch(e.target.value)}
+                    placeholder="Search model catalog…"
+                    disabled={catalogLoading || models.length === 0}
+                    style={{ paddingLeft: 30, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "6px" }}
+                  />
+                </div>
                 <select
                   value={resolvedBlackSlug}
                   onChange={(e) => setBlackSlug(e.target.value)}
                   disabled={catalogLoading || models.length === 0}
+                  style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", marginTop: -2 }}
+                  title={blackModel ? `${blackModel.name} · ${blackModel.provider}` : "Select Black Model"}
                 >
                   {blackOptions.length === 0 ? (
                     <option value="">No models match</option>
@@ -761,32 +803,40 @@ export function SimulationClient() {
                     ))
                   )}
                 </select>
-              </Label>
+              </div>
 
               {/* Controls row */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Label>
-                  Max Plies
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 4 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Max Plies
+                  </span>
                   <input
                     type="number"
                     min={20}
                     max={400}
                     value={maxPlies}
                     onChange={(e) => setMaxPlies(Number(e.target.value))}
+                    style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}
                   />
-                </Label>
+                </div>
 
-                <Label>
-                  Turn Delay
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    Turn Delay
+                  </span>
                   <select
                     value={speedMs}
                     onChange={(e) => setSpeedMs(Number(e.target.value))}
+                    style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}
                   >
                     <option value={250}>Fast</option>
                     <option value={900}>Balanced</option>
                     <option value={1500}>Slow</option>
                   </select>
-                </Label>
+                </div>
               </div>
             </div>
 
@@ -805,6 +855,7 @@ export function SimulationClient() {
                 disabled={
                   isRunning || isStarting || catalogLoading || models.length === 0
                 }
+                style={{ flex: 1, boxShadow: "0 4px 14px rgba(74, 222, 128, 0.25)" }}
               >
                 {isStarting ? (
                   <>
@@ -812,8 +863,8 @@ export function SimulationClient() {
                       className="spin"
                       style={{
                         display: "inline-block",
-                        width: 12,
-                        height: 12,
+                        width: 14,
+                        height: 14,
                         borderStyle: "solid",
                         borderWidth: 2,
                         borderColor: "rgba(5,10,5,0.25)",
@@ -824,7 +875,10 @@ export function SimulationClient() {
                     Starting
                   </>
                 ) : (
-                  "▶ Start"
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    Start Game
+                  </div>
                 )}
               </Btn>
 
@@ -832,11 +886,17 @@ export function SimulationClient() {
                 variant="danger"
                 onClick={stopSimulation}
                 disabled={!isRunning}
+                style={{ flex: 1 }}
               >
-                ■ Stop
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                  Stop
+                </div>
               </Btn>
 
-              <Btn onClick={() => void refreshCatalog()}>↺ Refresh</Btn>
+              <Btn onClick={() => void refreshCatalog()} variant="default" style={{ padding: "8px 12px" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              </Btn>
             </div>
           </div>
 
