@@ -1,9 +1,42 @@
 @import "tailwindcss";
 
 :root {
+  --bg: #f6f7f8;
+  --surface: #ffffff;
+  --surface-raised: #eef1f4;
+  --surface-soft: rgba(2, 6, 23, 0.04);
+  --border: rgba(15, 23, 42, 0.12);
+  --border-strong: rgba(15, 23, 42, 0.22);
+  --text-primary: #121417;
+  --text-secondary: #384251;
+  --text-muted: #647188;
+  --accent: #22c55e;
+  --accent-dim: rgba(34, 197, 94, 0.14);
+  --accent-border: rgba(34, 197, 94, 0.3);
+  --accent-contrast: #061108;
+  --danger: #dc2626;
+  --danger-dim: rgba(220, 38, 38, 0.12);
+  --danger-contrast: #ffffff;
+  --warning: #d97706;
+  --hover-bg: rgba(2, 6, 23, 0.06);
+  --header-bg: rgba(246, 247, 248, 0.88);
+  --grid-line: rgba(2, 6, 23, 0.05);
+  --noise-opacity: 0.12;
+  --scrollbar-thumb: rgba(2, 6, 23, 0.2);
+  --scrollbar-thumb-hover: rgba(2, 6, 23, 0.32);
+  --inline-code-bg: rgba(2, 6, 23, 0.08);
+  --border-hover: rgba(15, 23, 42, 0.32);
+  --row-alt-bg: rgba(2, 6, 23, 0.03);
+  --row-hover-bg: rgba(2, 6, 23, 0.06);
+  --select-option-bg: #ffffff;
+  --select-option-text: #121417;
+}
+
+html[data-theme="dark"] {
   --bg: #0d0d0d;
   --surface: #141414;
   --surface-raised: #1a1a1a;
+  --surface-soft: rgba(255, 255, 255, 0.025);
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
   --text-primary: #f5f5f5;
@@ -12,9 +45,23 @@
   --accent: #4ade80;
   --accent-dim: rgba(74, 222, 128, 0.12);
   --accent-border: rgba(74, 222, 128, 0.25);
+  --accent-contrast: #050a05;
   --danger: #f87171;
   --danger-dim: rgba(248, 113, 113, 0.10);
+  --danger-contrast: #1b0202;
   --warning: #fbbf24;
+  --hover-bg: rgba(255, 255, 255, 0.05);
+  --header-bg: rgba(13, 13, 13, 0.88);
+  --grid-line: rgba(255, 255, 255, 0.018);
+  --noise-opacity: 0.4;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
+  --inline-code-bg: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.28);
+  --row-alt-bg: rgba(255, 255, 255, 0.012);
+  --row-hover-bg: rgba(255, 255, 255, 0.035);
+  --select-option-bg: #1a1a1a;
+  --select-option-text: #f5f5f5;
 }
 
 @theme inline {
@@ -37,6 +84,10 @@ html {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   background: var(--bg);
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
   color-scheme: dark;
 }
 
@@ -58,7 +109,7 @@ body::before {
   pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
   background-size: 200px 200px;
-  opacity: 0.4;
+  opacity: var(--noise-opacity);
 }
 
 /* Grid pattern background */
@@ -68,9 +119,8 @@ body::after {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 
@@ -97,11 +147,11 @@ h1, h2, h3, h4 {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Form elements base reset */
@@ -130,8 +180,8 @@ input:disabled, select:disabled {
   cursor: not-allowed;
 }
 select option {
-  background: #1a1a1a;
-  color: #f5f5f5;
+  background: var(--select-option-bg);
+  color: var(--select-option-text);
 }
 
 /* Page entrance animation */

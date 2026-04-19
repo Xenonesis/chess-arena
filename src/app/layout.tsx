@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DM_Sans, Playfair_Display } from "next/font/google";
+import { ThemeToggle } from "@/components/theme-toggle";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -21,6 +22,18 @@ export const metadata: Metadata = {
     "Benchmark frontier LLM models by running AI-vs-AI chess simulations with verified move legality and persistent scoring.",
 };
 
+const themeInitScript = `(function () {
+  try {
+    var storageKey = "chess-arena-theme";
+    var storedTheme = window.localStorage.getItem(storageKey);
+    var systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    var resolvedTheme = storedTheme === "light" || storedTheme === "dark" ? storedTheme : systemTheme;
+    document.documentElement.dataset.theme = resolvedTheme;
+  } catch {
+    document.documentElement.dataset.theme = "dark";
+  }
+})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,6 +45,10 @@ export default function RootLayout({
       className={`${dmSans.variable} ${playfair.variable} h-full`}
       suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+
       <body className="min-h-full flex flex-col" style={{ background: "var(--bg)" }}>
         <style>{`
           .nav-link {
@@ -46,7 +63,7 @@ export default function RootLayout({
           }
           .nav-link:hover {
             color: var(--text-primary);
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--hover-bg);
           }
         `}</style>
 
@@ -56,7 +73,7 @@ export default function RootLayout({
             position: "sticky",
             top: 0,
             zIndex: 50,
-            background: "rgba(13,13,13,0.88)",
+            background: "var(--header-bg)",
             backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
             borderBottom: "1px solid var(--border)",
@@ -92,7 +109,7 @@ export default function RootLayout({
                   placeItems: "center",
                   background: "var(--accent)",
                   borderRadius: 6,
-                  color: "#000",
+                  color: "var(--accent-contrast)",
                   fontSize: 15,
                   lineHeight: 1,
                   fontWeight: 700,
@@ -115,17 +132,20 @@ export default function RootLayout({
             </Link>
 
             {/* Navigation links */}
-            <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Link href="/game" className="nav-link">
-                Simulation
-              </Link>
-              <Link href="/leaderboard" className="nav-link">
-                Leaderboard
-              </Link>
-              <Link href="/settings" className="nav-link">
-                Settings
-              </Link>
-            </nav>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <Link href="/game" className="nav-link">
+                  Simulation
+                </Link>
+                <Link href="/leaderboard" className="nav-link">
+                  Leaderboard
+                </Link>
+                <Link href="/settings" className="nav-link">
+                  Settings
+                </Link>
+              </nav>
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 

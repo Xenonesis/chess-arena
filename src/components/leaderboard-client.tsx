@@ -49,7 +49,7 @@ function PerfBar({ value }: { value: number }) {
         style={{
           flex: 1,
           height: 4,
-          background: "rgba(255,255,255,0.07)",
+          background: "var(--inline-code-bg)",
           borderRadius: 2,
           overflow: "hidden",
           minWidth: 60,
@@ -152,7 +152,7 @@ function SkeletonRow() {
             style={{
               height: 14,
               borderRadius: 4,
-              background: "rgba(255,255,255,0.05)",
+              background: "var(--inline-code-bg)",
               width: i === 1 ? "80%" : "50%",
             }}
           />
@@ -346,15 +346,15 @@ export function LeaderboardClient() {
                 style={{
                   borderBottom: "1px solid var(--border)",
                   transition: "background 0.12s",
-                  background: index % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)",
+                  background: index % 2 === 0 ? "transparent" : "var(--row-alt-bg)",
                 }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLTableRowElement).style.background =
-                    "rgba(255,255,255,0.035)";
+                    "var(--row-hover-bg)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLTableRowElement).style.background =
-                    index % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)";
+                    index % 2 === 0 ? "transparent" : "var(--row-alt-bg)";
                 }}
               >
                 <td style={{ padding: "14px 16px" }}>

@@ -3,20 +3,55 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import useSWR from "swr";
+import type { ProviderConfig, ProviderKeySet } from "@/lib/ai/provider-config";
+import { getStorageKey, type KeyScope } from "@/lib/config/provider-storage";
 
-function getProviderConfig(): Record<string, string> {
+function readStoredKey(scope: KeyScope, provider: "openrouter" | "groq"): string | undefined {
+  const key = localStorage.getItem(getStorageKey(scope, provider))?.trim();
+  return key ? key : undefined;
+}
+
+function hasAnyKey(config: ProviderKeySet): boolean {
+  return Boolean(config.openrouterApiKey || config.groqApiKey);
+}
+
+function getProviderConfig(): ProviderConfig {
   if (typeof window === "undefined") return {};
-  const config: Record<string, string> = {};
-  const orKey = localStorage.getItem("chess_arena_openrouter_key");
-  const groqKey = localStorage.getItem("chess_arena_groq_key");
-  if (orKey) config.openrouterApiKey = orKey;
-  if (groqKey) config.groqApiKey = groqKey;
+
+  const config: ProviderConfig = {};
+
+  const shared: ProviderKeySet = {
+    openrouterApiKey: readStoredKey("shared", "openrouter"),
+    groqApiKey: readStoredKey("shared", "groq"),
+  };
+
+  const white: ProviderKeySet = {
+    openrouterApiKey: readStoredKey("white", "openrouter"),
+    groqApiKey: readStoredKey("white", "groq"),
+  };
+
+  const black: ProviderKeySet = {
+    openrouterApiKey: readStoredKey("black", "openrouter"),
+    groqApiKey: readStoredKey("black", "groq"),
+  };
+
+  if (shared.openrouterApiKey) config.openrouterApiKey = shared.openrouterApiKey;
+  if (shared.groqApiKey) config.groqApiKey = shared.groqApiKey;
+  if (hasAnyKey(white)) config.white = white;
+  if (hasAnyKey(black)) config.black = black;
+
   return config;
 }
 
 function providerHeader(): HeadersInit {
   const config = getProviderConfig();
-  if (Object.keys(config).length === 0) return {};
+  const hasConfig =
+    Boolean(config.openrouterApiKey) ||
+    Boolean(config.groqApiKey) ||
+    hasAnyKey(config.white ?? {}) ||
+    hasAnyKey(config.black ?? {});
+
+  if (!hasConfig) return {};
   return { "x-provider-config": JSON.stringify(config) };
 }
 
@@ -68,7 +103,7 @@ function statusStyle(status: string): React.CSSProperties {
   if (["checkmate", "stalemate", "draw"].includes(status))
     return { background: "rgba(251,191,36,0.1)", color: "var(--warning)", borderColor: "rgba(251,191,36,0.25)" };
   return {
-    background: "rgba(255,255,255,0.04)",
+    background: "var(--surface-soft)",
     color: "var(--text-secondary)",
     borderColor: "var(--border-strong)",
   };
@@ -132,13 +167,13 @@ function Btn({
     accent: {
       ...base,
       background: disabled ? "rgba(74,222,128,0.12)" : "var(--accent)",
-      color: disabled ? "var(--accent)" : "#050a05",
+      color: disabled ? "var(--accent)" : "var(--accent-contrast)",
       opacity: disabled ? 0.45 : 1,
     },
     danger: {
       ...base,
       background: disabled ? "var(--danger-dim)" : "var(--danger)",
-      color: disabled ? "var(--danger)" : "#0a0303",
+      color: disabled ? "var(--danger)" : "var(--danger-contrast)",
       opacity: disabled ? 0.45 : 1,
     },
     default: {
@@ -689,9 +724,9 @@ export function SimulationClient() {
           {/* Config card */}
           <div
             style={{
-              background: "linear-gradient(160deg, rgba(20,20,20,0.9), rgba(10,10,10,0.95))",
-              border: "1px solid rgba(255,255,255,0.06)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
+              background: "linear-gradient(160deg, var(--surface), var(--surface-raised))",
+              border: "1px solid var(--border)",
+              boxShadow: "0 8px 28px rgba(0,0,0,0.14)",
               borderRadius: 12,
               padding: "24px",
               position: "relative",
@@ -704,7 +739,7 @@ export function SimulationClient() {
               top: 0, left: "50%",
               transform: "translateX(-50%)",
               width: "80%", height: 1,
-              background: "linear-gradient(90deg, transparent, rgba(74, 222, 128, 0.15), transparent)"
+              background: "linear-gradient(90deg, transparent, var(--accent-border), transparent)"
             }}/>
             <p
               style={{
@@ -724,13 +759,13 @@ export function SimulationClient() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                   <div style={{
-                    width: 22, height: 22, background: "linear-gradient(135deg, #ffffff, #e0e0e0)", borderRadius: 5,
+                    width: 22, height: 22, background: "linear-gradient(135deg, #ffffff, #e8e8e8)", borderRadius: 5,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     boxShadow: "0 2px 8px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.5)"
                   }}>
-                    <span style={{ color: "#000", fontSize: 14, lineHeight: 1, filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.2))" }}>♔</span>
+                    <span style={{ color: "#0b0d10", fontSize: 14, lineHeight: 1, filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.2))" }}>♔</span>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ececec" }}>White Player</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-primary)" }}>White Player</span>
                 </div>
                 <div style={{ position: "relative" }}>
                   <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -740,14 +775,14 @@ export function SimulationClient() {
                     onChange={(e) => setWhiteSearch(e.target.value)}
                     placeholder="Search model catalog…"
                     disabled={catalogLoading || models.length === 0}
-                    style={{ paddingLeft: 30, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "6px" }}
+                    style={{ paddingLeft: 30, background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "6px" }}
                   />
                 </div>
                 <select
                   value={resolvedWhiteSlug}
                   onChange={(e) => setWhiteSlug(e.target.value)}
                   disabled={catalogLoading || models.length === 0}
-                  style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", marginTop: -2 }}
+                  style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", marginTop: -2 }}
                   title={whiteModel ? `${whiteModel.name} · ${whiteModel.provider}` : "Select White Model"}
                 >
                   {whiteOptions.length === 0 ? (
@@ -773,7 +808,7 @@ export function SimulationClient() {
                   }}>
                     <span style={{ color: "#ececec", fontSize: 13, lineHeight: 1 }}>♚</span>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ececec" }}>Black Player</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-primary)" }}>Black Player</span>
                 </div>
                 <div style={{ position: "relative" }}>
                   <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -783,14 +818,14 @@ export function SimulationClient() {
                     onChange={(e) => setBlackSearch(e.target.value)}
                     placeholder="Search model catalog…"
                     disabled={catalogLoading || models.length === 0}
-                    style={{ paddingLeft: 30, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "6px" }}
+                    style={{ paddingLeft: 30, background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "6px" }}
                   />
                 </div>
                 <select
                   value={resolvedBlackSlug}
                   onChange={(e) => setBlackSlug(e.target.value)}
                   disabled={catalogLoading || models.length === 0}
-                  style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", marginTop: -2 }}
+                  style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", marginTop: -2 }}
                   title={blackModel ? `${blackModel.name} · ${blackModel.provider}` : "Select Black Model"}
                 >
                   {blackOptions.length === 0 ? (
@@ -818,7 +853,7 @@ export function SimulationClient() {
                     max={400}
                     value={maxPlies}
                     onChange={(e) => setMaxPlies(Number(e.target.value))}
-                    style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}
+                    style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
                   />
                 </div>
 
@@ -830,7 +865,7 @@ export function SimulationClient() {
                   <select
                     value={speedMs}
                     onChange={(e) => setSpeedMs(Number(e.target.value))}
-                    style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}
+                    style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
                   >
                     <option value={250}>Fast</option>
                     <option value={900}>Balanced</option>
@@ -867,8 +902,8 @@ export function SimulationClient() {
                         height: 14,
                         borderStyle: "solid",
                         borderWidth: 2,
-                        borderColor: "rgba(5,10,5,0.25)",
-                        borderTopColor: "#050a05",
+                        borderColor: "rgba(0,0,0,0.15)",
+                        borderTopColor: "var(--accent-contrast)",
                         borderRadius: "50%",
                       }}
                     />
@@ -932,7 +967,7 @@ export function SimulationClient() {
               {moves.length > 0 && (
                 <span
                   style={{
-                    background: "rgba(255,255,255,0.06)",
+                    background: "var(--inline-code-bg)",
                     borderRadius: 4,
                     padding: "2px 8px",
                     fontSize: 11,

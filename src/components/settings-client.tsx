@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-
-type Provider = "openrouter" | "groq";
+import type { Provider } from "@/lib/ai/provider-config";
+import {
+  getStorageKey,
+  PROVIDER_SCOPES,
+  PROVIDER_STORAGE_KEYS,
+  type KeyScope,
+} from "@/lib/config/provider-storage";
 
 type KeyState = {
   value: string;
@@ -13,13 +18,8 @@ type KeyState = {
   modelCount?: number;
 };
 
-const STORAGE_KEYS = {
-  openrouter: "chess_arena_openrouter_key",
-  groq: "chess_arena_groq_key",
-} as const;
-
-function useProviderKey(provider: Provider) {
-  const storageKey = STORAGE_KEYS[provider];
+function useProviderKey(provider: Provider, scope: KeyScope) {
+  const storageKey = getStorageKey(scope, provider);
 
   const [state, setState] = useState<KeyState>({
     value: "",
@@ -134,6 +134,7 @@ function StatusChip({ status, message }: { status: KeyState["status"]; message: 
 function ProviderCard({
   title,
   provider,
+  scope,
   logo,
   docsUrl,
   placeholder,
@@ -141,12 +142,13 @@ function ProviderCard({
 }: {
   title: string;
   provider: Provider;
+  scope: KeyScope;
   logo: string;
   docsUrl: string;
   placeholder: string;
   description: string;
 }) {
-  const { state, save, clear, onChange } = useProviderKey(provider);
+  const { state, save, clear, onChange } = useProviderKey(provider, scope);
   const [showKey, setShowKey] = useState(false);
 
   const hasKey = !!state.value.trim();
@@ -188,6 +190,11 @@ function ProviderCard({
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1 }}>
               {description}
             </p>
+            {scope !== "shared" && (
+              <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                {scope === "white" ? "White player override" : "Black player override"}
+              </p>
+            )}
           </div>
         </div>
 
@@ -210,7 +217,7 @@ function ProviderCard({
                 }
               : {
                   color: "var(--text-muted)",
-                  background: "rgba(255,255,255,0.03)",
+                  background: "var(--surface-soft)",
                   borderColor: "var(--border)",
                 }),
           }}
@@ -232,7 +239,11 @@ function ProviderCard({
             marginBottom: 8,
           }}
         >
-          API Key
+          {scope === "shared"
+            ? "API Key"
+            : scope === "white"
+              ? "API Key (White Override)"
+              : "API Key (Black Override)"}
         </label>
 
         <div style={{ display: "flex", gap: 8 }}>
@@ -282,7 +293,7 @@ function ProviderCard({
               padding: "8px 16px",
               borderRadius: 6,
               background: hasKey && !state.validating ? "var(--accent)" : "rgba(74,222,128,0.1)",
-              color: hasKey && !state.validating ? "#050a05" : "var(--accent)",
+              color: hasKey && !state.validating ? "var(--accent-contrast)" : "var(--accent)",
               border: "none",
               cursor: hasKey && !state.validating ? "pointer" : "not-allowed",
               fontSize: 13,
@@ -339,21 +350,28 @@ function ProviderCard({
 
 /* ── Storage info box ── */
 function StorageInfo() {
-  const [keyCount, setKeyCount] = useState(0);
+  const [keyCount] = useState(() => {
+    if (typeof window === "undefined") {
+      return 0;
+    }
 
-  useEffect(() => {
     let count = 0;
-    if (localStorage.getItem("chess_arena_openrouter_key")) count++;
-    if (localStorage.getItem("chess_arena_groq_key")) count++;
-    setKeyCount(count);
-  }, []);
+    for (const scope of PROVIDER_SCOPES) {
+      for (const provider of ["openrouter", "groq"] as const) {
+        if (localStorage.getItem(PROVIDER_STORAGE_KEYS[scope][provider])) {
+          count += 1;
+        }
+      }
+    }
+    return count;
+  });
 
   return (
     <div
       style={{
         padding: "14px 16px",
         borderRadius: 8,
-        background: "rgba(255,255,255,0.025)",
+        background: "var(--surface-soft)",
         border: "1px solid var(--border)",
         display: "flex",
         alignItems: "flex-start",
@@ -368,7 +386,7 @@ function StorageInfo() {
         <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>
           Local storage only.
         </strong>{" "}
-        Keys are stored in your browser&apos;s <code style={{ fontSize: 12, background: "rgba(255,255,255,0.06)", padding: "1px 5px", borderRadius: 3 }}>localStorage</code> and sent directly
+        Keys are stored in your browser&apos;s <code style={{ fontSize: 12, background: "var(--inline-code-bg)", padding: "1px 5px", borderRadius: 3 }}>localStorage</code> and sent directly
         to the AI provider on each move request. They are never persisted on
         our servers.{" "}
         {keyCount > 0 && (
@@ -381,14 +399,37 @@ function StorageInfo() {
   );
 }
 
-export function SettingsClient() {
+function ScopeSection({
+  scope,
+  title,
+  description,
+}: {
+  scope: KeyScope;
+  title: string;
+  description: string;
+}) {
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <StorageInfo />
+    <section style={{ display: "grid", gap: 12 }}>
+      <div>
+        <p
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--text-muted)",
+            marginBottom: 4,
+          }}
+        >
+          {title}
+        </p>
+        <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{description}</p>
+      </div>
 
       <ProviderCard
         title="OpenRouter"
         provider="openrouter"
+        scope={scope}
         logo="🌐"
         docsUrl="https://openrouter.ai/keys"
         placeholder="sk-or-v1-…"
@@ -398,10 +439,37 @@ export function SettingsClient() {
       <ProviderCard
         title="Groq"
         provider="groq"
+        scope={scope}
         logo="⚡"
         docsUrl="https://console.groq.com/keys"
         placeholder="gsk_…"
         description="Ultra-fast inference for open-source models"
+      />
+    </section>
+  );
+}
+
+export function SettingsClient() {
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <StorageInfo />
+
+      <ScopeSection
+        scope="shared"
+        title="Shared Keys (Default For Both Players)"
+        description="Use one key per provider for both White and Black unless a player-specific override is set."
+      />
+
+      <ScopeSection
+        scope="white"
+        title="White Player Overrides"
+        description="Optional. If set, White uses these keys instead of shared keys."
+      />
+
+      <ScopeSection
+        scope="black"
+        title="Black Player Overrides"
+        description="Optional. If set, Black uses these keys instead of shared keys."
       />
 
       <div
@@ -419,16 +487,16 @@ export function SettingsClient() {
           How it works
         </p>
         <ul style={{ paddingLeft: 16, display: "grid", gap: 5 }}>
-          <li>Your saved keys override the server-side environment variables.</li>
+          <li>Player-specific overrides are used first, then shared keys, then server environment values.</li>
           <li>
             Groq models appear in the simulation model selector prefixed with{" "}
-            <code style={{ fontSize: 12, background: "rgba(255,255,255,0.06)", padding: "1px 5px", borderRadius: 3 }}>
+            <code style={{ fontSize: 12, background: "var(--inline-code-bg)", padding: "1px 5px", borderRadius: 3 }}>
               groq:
             </code>
             .
           </li>
-          <li>Both providers can be used simultaneously in the same game.</li>
-          <li>Clearing a key falls back to the server environment variable if one is set.</li>
+          <li>White and Black can use different providers and different API keys in the same game.</li>
+          <li>Clearing a key falls back to shared settings or server environment variables.</li>
         </ul>
       </div>
     </div>

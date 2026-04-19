@@ -37,7 +37,8 @@ export default function SettingsPage() {
         </h1>
         <p style={{ fontSize: 14.5, color: "var(--text-secondary)", maxWidth: 500 }}>
           API keys are stored locally in your browser and never sent to our
-          servers — they go directly to the AI provider per request.
+          servers — they go directly to the AI provider per request. You can
+          configure separate keys for White and Black players.
         </p>
       </header>
 

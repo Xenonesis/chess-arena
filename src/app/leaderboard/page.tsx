@@ -22,7 +22,7 @@ export default function LeaderboardPage() {
           margin-top: 28px;
         }
         .back-link:hover {
-          border-color: rgba(255,255,255,0.28);
+          border-color: var(--border-hover);
           color: var(--text-primary);
         }
       `}</style>

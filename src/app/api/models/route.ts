@@ -1,36 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listOpenRouterCatalog } from "@/lib/ai/openrouter-catalog";
 import { listGroqModels } from "@/lib/ai/groq";
+import type { ProviderConfig } from "@/lib/ai/provider-config";
 
 export const runtime = "nodejs";
 
-function parseProviderConfig(request: NextRequest) {
+function parseProviderConfig(request: NextRequest): ProviderConfig {
   try {
     const raw = request.headers.get("x-provider-config");
-    if (!raw) return {} as Record<string, string>;
-    return JSON.parse(raw) as Record<string, string>;
+    if (!raw) return {};
+    return JSON.parse(raw) as ProviderConfig;
   } catch {
-    return {} as Record<string, string>;
+    return {};
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
     const providerConfig = parseProviderConfig(request);
-
-    const openrouterModels = await listOpenRouterCatalog(
-      providerConfig.openrouterApiKey,
+    const openrouterKeys = Array.from(
+      new Set(
+        [
+          providerConfig.openrouterApiKey,
+          providerConfig.white?.openrouterApiKey,
+          providerConfig.black?.openrouterApiKey,
+        ].filter((value): value is string => Boolean(value?.trim())),
+      ),
     );
 
-    let groqModels: Awaited<ReturnType<typeof listGroqModels>> = [];
-    if (providerConfig.groqApiKey) {
+    const openrouterCatalogs =
+      openrouterKeys.length > 0
+        ? await Promise.all(openrouterKeys.map((key) => listOpenRouterCatalog(key)))
+        : [await listOpenRouterCatalog(undefined)];
+
+    const openrouterModels = Array.from(
+      new Map(openrouterCatalogs.flat().map((entry) => [entry.slug, entry])).values(),
+    );
+
+    const groqKeys = Array.from(
+      new Set(
+        [
+          providerConfig.groqApiKey,
+          providerConfig.white?.groqApiKey,
+          providerConfig.black?.groqApiKey,
+        ].filter((value): value is string => Boolean(value?.trim())),
+      ),
+    );
+
+    const groqCatalogs: Array<Awaited<ReturnType<typeof listGroqModels>>> = [];
+    for (const key of groqKeys) {
       try {
-        groqModels = await listGroqModels(providerConfig.groqApiKey);
+        const models = await listGroqModels(key);
+        groqCatalogs.push(models);
       } catch {
-        // Silently skip Groq if key is invalid — error shown in settings
+        // Silently skip Groq keys that fail validation — settings page shows detailed errors.
       }
     }
 
+
+    const groqModels = Array.from(
+      new Map(groqCatalogs.flat().map((entry) => [entry.slug, entry])).values(),
+    );
     const allModels = [...openrouterModels, ...groqModels];
 
     return NextResponse.json({

@@ -1,10 +1,6 @@
 import { requestOpenRouterMove } from "@/lib/ai/openrouter";
 import { requestGroqMove } from "@/lib/ai/groq";
-
-export type ProviderConfig = {
-  openrouterApiKey?: string;
-  groqApiKey?: string;
-};
+import type { ProviderKeySet } from "@/lib/ai/provider-config";
 
 /**
  * Unified move dispatcher.
@@ -15,7 +11,7 @@ export async function requestMove(input: {
   modelName: string;
   strict: boolean;
   legalMoves?: string[];
-  providerConfig?: ProviderConfig;
+  providerConfig?: ProviderKeySet;
 }): Promise<string> {
   if (input.modelName.startsWith("groq:")) {
     const groqModel = input.modelName.slice("groq:".length);

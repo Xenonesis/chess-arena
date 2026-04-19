@@ -1,7 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
 import { Chess } from "chess.js";
 import { NextRequest, NextResponse } from "next/server";
-import { requestMove, type ProviderConfig } from "@/lib/ai/dispatcher";
+import { requestMove } from "@/lib/ai/dispatcher";
+import {
+  mergeProviderConfigForSide,
+  type ProviderConfig,
+} from "@/lib/ai/provider-config";
 import { moveStepSchema } from "@/lib/api/contracts";
 import {
   applyUciMove,
@@ -130,6 +134,10 @@ export async function POST(request: NextRequest) {
     const blackModel = modelById.get(game.modelBlackId);
 
     const modelForTurn = game.turn === "w" ? whiteModel : blackModel;
+    const providerConfigForTurn = mergeProviderConfigForSide(
+      providerConfig,
+      game.turn === "w" ? "white" : "black",
+    );
     if (!modelForTurn) {
       return NextResponse.json(
         { error: "Model record missing for current turn" },
@@ -152,7 +160,7 @@ export async function POST(request: NextRequest) {
         fen: game.currentFen,
         modelName: modelForTurn.openrouterModel,
         strict: false,
-        providerConfig,
+        providerConfig: providerConfigForTurn,
       });
       selectedUci = extractUciMove(rawOutput);
     } catch (error) {
@@ -169,7 +177,7 @@ export async function POST(request: NextRequest) {
           modelName: modelForTurn.openrouterModel,
           strict: true,
           legalMoves: legalUci,
-          providerConfig,
+          providerConfig: providerConfigForTurn,
         });
         selectedUci = extractUciMove(rawOutput);
         callFailureCode = null;

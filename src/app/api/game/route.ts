@@ -3,6 +3,11 @@ import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenRouterModelBySlug } from "@/lib/ai/openrouter-catalog";
 import { listGroqModels } from "@/lib/ai/groq";
+import {
+  mergeProviderConfigForSide,
+  type ProviderConfig,
+  type Side,
+} from "@/lib/ai/provider-config";
 import { createGameSchema } from "@/lib/api/contracts";
 import { db } from "@/lib/db/client";
 import { games } from "@/lib/db/schema";
@@ -16,13 +21,13 @@ import {
 
 export const runtime = "nodejs";
 
-function parseProviderConfig(request: NextRequest) {
+function parseProviderConfig(request: NextRequest): ProviderConfig {
   try {
     const raw = request.headers.get("x-provider-config");
-    if (!raw) return {} as Record<string, string>;
-    return JSON.parse(raw) as Record<string, string>;
+    if (!raw) return {};
+    return JSON.parse(raw) as ProviderConfig;
   } catch {
-    return {} as Record<string, string>;
+    return {};
   }
 }
 
@@ -52,11 +57,13 @@ export async function POST(request: NextRequest) {
 
     const providerConfig = parseProviderConfig(request);
 
-    const resolveModel = async (slug: string) => {
+    const resolveModel = async (slug: string, side: Side) => {
+      const sideConfig = mergeProviderConfigForSide(providerConfig, side);
+
       // Groq model slugs are prefixed with "groq:"
       if (slug.startsWith("groq:")) {
         const groqModel = slug.slice("groq:".length);
-        const groqApiKey = providerConfig.groqApiKey;
+        const groqApiKey = sideConfig.groqApiKey;
         if (!groqApiKey) return null;
         try {
           const groqModels = await listGroqModels(groqApiKey);
@@ -75,15 +82,15 @@ export async function POST(request: NextRequest) {
 
       const openRouterEntry = await getOpenRouterModelBySlug(
         slug,
-        providerConfig.openrouterApiKey,
+        sideConfig.openrouterApiKey,
       );
       if (!openRouterEntry) return null;
       return upsertModelCatalogEntry(openRouterEntry);
     };
 
     const [whiteModel, blackModel] = await Promise.all([
-      resolveModel(payload.data.whiteModelSlug),
-      resolveModel(payload.data.blackModelSlug),
+      resolveModel(payload.data.whiteModelSlug, "white"),
+      resolveModel(payload.data.blackModelSlug, "black"),
     ]);
 
     if (!whiteModel || !blackModel) {

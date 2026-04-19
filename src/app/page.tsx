@@ -39,7 +39,7 @@ export default function Home() {
           padding: 11px 24px;
           border-radius: 7px;
           background: var(--accent);
-          color: #050a05;
+          color: var(--accent-contrast);
           font-size: 14px;
           font-weight: 600;
           text-decoration: none;
@@ -64,7 +64,7 @@ export default function Home() {
           transition: border-color 0.15s, color 0.15s, transform 0.15s;
         }
         .hero-btn-secondary:hover {
-          border-color: rgba(255,255,255,0.3);
+          border-color: var(--border-hover);
           color: var(--text-primary);
           transform: translateY(-1px);
         }
