@@ -789,7 +789,7 @@ export function SimulationClient() {
                     <option value="">No models match</option>
                   ) : (
                     whiteOptions.map((model) => (
-                      <option key={model.id} value={model.slug}>
+                      <option key={model.slug} value={model.slug}>
                         {model.name} · {model.provider}
                       </option>
                     ))
@@ -832,7 +832,7 @@ export function SimulationClient() {
                     <option value="">No models match</option>
                   ) : (
                     blackOptions.map((model) => (
-                      <option key={model.id} value={model.slug}>
+                      <option key={model.slug} value={model.slug}>
                         {model.name} · {model.provider}
                       </option>
                     ))
