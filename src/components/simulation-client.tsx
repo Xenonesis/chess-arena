@@ -523,10 +523,15 @@ export function SimulationClient() {
   /* Current player (ply count → whose turn) */
   const currentPlayer =
     moves.length % 2 === 0 ? "White" : "Black";
+  const currentThinkingModel =
+    currentPlayer === "White" ? whiteModel : blackModel;
   const currentModelName =
     moves.length % 2 === 0
       ? whiteModel?.name ?? "White"
       : blackModel?.name ?? "Black";
+  const currentModelLabel = currentThinkingModel
+    ? `${currentThinkingModel.name} · ${currentThinkingModel.provider}`
+    : currentModelName;
 
   return (
     <div
@@ -935,6 +940,52 @@ export function SimulationClient() {
             </div>
           </div>
 
+          {(isRunning || isStarting) && (
+            <div
+              style={{
+                background: "linear-gradient(135deg, rgba(74,222,128,0.08), rgba(74,222,128,0.02))",
+                border: "1px solid rgba(74,222,128,0.22)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 3,
+                    background: currentPlayer === "White" ? "#e8e8e8" : "#222",
+                    border:
+                      currentPlayer === "White"
+                        ? "1px solid rgba(0,0,0,0.2)"
+                        : "1px solid rgba(255,255,255,0.15)",
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: "var(--text-primary)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={currentModelLabel}
+                >
+                  {currentModelLabel}
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600, flexShrink: 0 }}>
+                {isStarting ? "Starting..." : "Thinking..."}
+              </span>
+            </div>
+          )}
+
           {/* Move history card */}
           <div
             style={{
@@ -1129,7 +1180,7 @@ export function SimulationClient() {
                   },
                   {
                     label: "Turn",
-                    value: isRunning ? currentModelName : "—",
+                    value: isRunning ? currentModelLabel : "—",
                   },
                 ].map(({ label, value }) => (
                   <div key={label}>

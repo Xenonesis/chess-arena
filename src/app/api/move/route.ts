@@ -9,7 +9,7 @@ import {
 import { moveStepSchema } from "@/lib/api/contracts";
 import {
   applyUciMove,
-  extractUciMove,
+  extractLegalUciMove,
   getLegalMoves,
   getOutcomeFromState,
 } from "@/lib/chess/move-utils";
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
         strict: false,
         providerConfig: providerConfigForTurn,
       });
-      selectedUci = extractUciMove(rawOutput);
+      selectedUci = extractLegalUciMove(rawOutput, legalMoves);
     } catch (error) {
       callFailureCode = "ai_call_failed";
       callFailureDetails =
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
           legalMoves: legalUci,
           providerConfig: providerConfigForTurn,
         });
-        selectedUci = extractUciMove(rawOutput);
+        selectedUci = extractLegalUciMove(rawOutput, legalMoves);
         callFailureCode = null;
         callFailureDetails = null;
       } catch (error) {

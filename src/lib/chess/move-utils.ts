@@ -9,9 +9,59 @@ export type LegalMove = {
 
 const UCI_PATTERN = /\b([a-h][1-8][a-h][1-8][qrbn]?)\b/i;
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeSan(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/0/g, "o")
+    .replace(/[+#?!]/g, "");
+}
+
+function findUciFromSan(rawText: string, legalMoves: LegalMove[]) {
+  const normalizedRaw = normalizeSan(rawText);
+
+  for (const legalMove of legalMoves) {
+    const normalizedSan = normalizeSan(legalMove.san);
+    if (!normalizedSan) continue;
+
+    const variants = new Set<string>([
+      normalizedSan,
+      normalizedSan.replace("x", ""),
+    ]);
+
+    for (const variant of variants) {
+      if (!variant) continue;
+
+      const pattern = new RegExp(
+        `(^|[^a-z0-9])${escapeRegExp(variant)}($|[^a-z0-9])`,
+        "i",
+      );
+
+      if (pattern.test(normalizedRaw)) {
+        return legalMove.uci;
+      }
+    }
+  }
+
+  return null;
+}
+
 export function extractUciMove(rawText: string) {
   const match = rawText.match(UCI_PATTERN);
   return match ? match[1].toLowerCase() : null;
+}
+
+export function extractLegalUciMove(rawText: string, legalMoves: LegalMove[]) {
+  const extractedUci = extractUciMove(rawText);
+  if (extractedUci && legalMoves.some((entry) => entry.uci === extractedUci)) {
+    return extractedUci;
+  }
+
+  return findUciFromSan(rawText, legalMoves);
 }
 
 export function toUci(move: Move) {
